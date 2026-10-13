@@ -1,6 +1,7 @@
 export type PlatformRole = "USER" | "SUPER_ADMIN";
+
+/** Display/session metadata only. This object is not an authorization credential. */
 export interface Session {
-  accessToken?: string;
   user: {
     id: number;
     name: string;

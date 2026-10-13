@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Droplets,
   ShieldCheck,
@@ -8,6 +9,7 @@ import {
   CircleAlert,
 } from "lucide-react";
 import type { Session } from "./authTypes";
+import { normalizeSession } from "./auth/session";
 
 const API = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 type LoginMode = "tenant" | "platform";
@@ -16,9 +18,15 @@ export default function Login({
 }: {
   onLogin: (session: Session) => void;
 }) {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [mode, setMode] = useState<LoginMode>(() =>
-    window.location.pathname.startsWith("/platform") ? "platform" : "tenant",
+    location.pathname.startsWith("/platform") ? "platform" : "tenant",
   );
+
+  useEffect(() => {
+    setMode(location.pathname.startsWith("/platform") ? "platform" : "tenant");
+  }, [location.pathname]);
   const [tenantSlug, setTenantSlug] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -45,7 +53,10 @@ export default function Login({
       const payload = await response.json();
       if (!response.ok)
         throw new Error(payload?.error?.message ?? "Sign in failed.");
-      onLogin(payload as Session);
+      const safeSession = normalizeSession(payload);
+      if (!safeSession) throw new Error("The sign-in response was not in the expected format.");
+      onLogin(safeSession);
+      setPassword("");
     } catch (e) {
       setError(
         e instanceof Error
@@ -97,7 +108,8 @@ export default function Login({
               className={mode === "tenant" ? "selected" : ""}
               onClick={() => {
                 setMode("tenant");
-                window.history.replaceState({}, "", "/login");
+                navigate("/login", { replace: true });
+                setPassword("");
                 setError("");
               }}
               type="button"
@@ -108,7 +120,8 @@ export default function Login({
               className={mode === "platform" ? "selected" : ""}
               onClick={() => {
                 setMode("platform");
-                window.history.replaceState({}, "", "/platform/login");
+                navigate("/platform/login", { replace: true });
+                setPassword("");
                 setError("");
               }}
               type="button"

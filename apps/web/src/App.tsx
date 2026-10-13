@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import type { Session } from "./authTypes";
+import { clearStoredSession, readStoredSession, storeSession } from "./auth/session";
 import Login from "./Login";
 import PlatformTenants from "./PlatformTenants";
 import {
@@ -101,43 +103,106 @@ const orders = [
 ];
 const bars = [44, 62, 50, 76, 58, 87, 67, 94, 72, 60, 82, 70];
 export default function App() {
-  const [session, setSession] = useState<Session | null>(() => {
-    try {
-      const value = sessionStorage.getItem("savvy-session");
-      return value ? (JSON.parse(value) as Session) : null;
-    } catch {
-      return null;
-    }
-  });
-  const logout = () => {
-    const route =
-      session?.user.platformRole === "SUPER_ADMIN"
-        ? "/api/web/v1/platform-auth/logout"
-        : "/api/web/v1/auth/logout";
-    void fetch(
-      `${import.meta.env.VITE_API_URL ?? "http://localhost:4000"}${route}`,
-      { method: "POST", credentials: "include" },
-    ).finally(() => {
-      sessionStorage.removeItem("savvy-session");
+  const navigate = useNavigate();
+  const location = useLocation();
+  const redirectFrom = (location.state as { from?: unknown } | null)?.from;
+  const [session, setSession] = useState<Session | null>(() => readStoredSession());
+
+  const handleLogin = useCallback((value: Session) => {
+    // Persist only safe display metadata; never persist an access token.
+    const safeSession = storeSession(value);
+    if (!safeSession) {
       setSession(null);
-    });
-  };
-  if (!session)
+      navigate("/login", { replace: true });
+      return;
+    }
+
+    setSession(safeSession);
+
+    // Return Super Admins to the requested platform page after a login redirect.
+    const requestedPlatformPath =
+      typeof redirectFrom === "string" &&
+      redirectFrom.startsWith("/platform-admin/") &&
+      redirectFrom !== "/platform-admin/login"
+        ? redirectFrom
+        : null;
+    const destination = safeSession.user.platformRole === "SUPER_ADMIN"
+      ? requestedPlatformPath ?? "/platform-admin"
+      : "/workspace";
+
+    navigate(destination, { replace: true });
+  }, [navigate, redirectFrom]);
+
+  const logout = useCallback(() => {
+    const isPlatformAdmin = session?.user.platformRole === "SUPER_ADMIN";
+    const route = isPlatformAdmin
+      ? "/api/web/v1/platform-auth/logout"
+      : "/api/web/v1/auth/logout";
+    const api = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+
+    void (async () => {
+      try {
+        await fetch(`${api}${route}`, {
+          method: "POST",
+          credentials: "include",
+        });
+      } catch {
+        // Always clear local UI state even if the API is temporarily unreachable.
+      } finally {
+        clearStoredSession();
+        setSession(null);
+        navigate(isPlatformAdmin ? "/platform-admin/login" : "/login", { replace: true });
+      }
+    })();
+  }, [navigate, session?.user.platformRole]);
+
+  // Protect routes and send unauthenticated visitors to the correct login mode.
+  if (!session) {
     return (
-      <Login
-        onLogin={(value) => {
-          sessionStorage.setItem("savvy-session", JSON.stringify(value));
-          setSession(value);
-        }}
-      />
+      <Routes>
+        <Route path="/platform-admin/login" element={<Login onLogin={handleLogin} />} />
+        <Route path="/login" element={<Login onLogin={handleLogin} />} />
+        <Route
+          path="/platform-admin/*"
+          element={
+            <Navigate
+              to="/platform-admin/login"
+              replace
+              state={{ from: location.pathname }}
+            />
+          }
+        />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
     );
-  if (session.user.platformRole === "SUPER_ADMIN")
-    return <PlatformTenants session={session} onLogout={logout} />;
+  }
+
+  if (session.user.platformRole === "SUPER_ADMIN") {
+    return (
+      <Routes>
+        <Route path="/login" element={<Navigate to="/platform-admin" replace />} />
+        <Route path="/platform-admin/login" element={<Navigate to="/platform-admin" replace />} />
+        <Route path="/platform-admin/*" element={<PlatformTenants session={session} onLogout={logout} />} />
+        <Route path="*" element={<Navigate to="/platform-admin" replace />} />
+      </Routes>
+    );
+  }
+
   return (
-    <TenantDashboard
-      onLogout={logout}
-      tenantName={session.tenant?.name ?? "Your workspace"}
-    />
+    <Routes>
+      <Route path="/login" element={<Navigate to="/workspace" replace />} />
+      <Route path="/platform-admin/*" element={<Navigate to="/workspace" replace />} />
+      <Route
+        path="/workspace"
+        element={
+          <TenantDashboard
+            onLogout={logout}
+            tenantName={session.tenant?.name ?? "Your workspace"}
+          />
+        }
+      />
+      <Route path="*" element={<Navigate to="/workspace" replace />} />
+    </Routes>
   );
 }
 

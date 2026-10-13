@@ -2,6 +2,7 @@ import { CircleAlert, CreditCard, Mail, WalletCards } from "lucide-react";
 import type { Tenant, TenantStatus } from "../types";
 import PageSearchBar from "../components/PageSearchBar";
 import TenantCard from "../components/TenantCard";
+import { formatBillingCycle, formatCurrency } from "../formatters";
 
 type Props = {
   loading: boolean;
@@ -35,7 +36,7 @@ export default function PaymentReviewPage({ loading, tenants, search, onSearchCh
               eyebrow="PAYMENT REVIEW REQUIRED"
               actions={<button className="page-card-primary-action" onClick={() => onReviewPayment(tenant)}><CreditCard size={15} /> Review payment history</button>}
             >
-              <div className="payment-review-amount"><span>Configured subscription amount</span><strong>{tenant.priceAmount ? `${tenant.currency} ${tenant.priceAmount}` : "Amount not set"}<small>{tenant.billingCycle.toLowerCase()} billing · {tenant.planCode}</small></strong></div>
+              <div className="payment-review-amount"><span>Configured subscription amount</span><strong>{formatCurrency(tenant.priceAmount, tenant.currency)}<small>{formatBillingCycle(tenant.billingCycle)} billing · {tenant.planCode}</small></strong></div>
               {tenant.ownerEmail && <div className="tenant-card-contact"><Mail size={14} /><a href={`mailto:${tenant.ownerEmail}`}>{tenant.ownerEmail}</a></div>}
               <p className="payment-review-note">Review the customer's payment history before granting paid access.</p>
             </TenantCard>

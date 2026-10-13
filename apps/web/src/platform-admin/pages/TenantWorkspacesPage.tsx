@@ -2,6 +2,7 @@ import { ArrowUpRight, CalendarDays, History, Mail, Power, Users } from "lucide-
 import type { Tenant, TenantStatus } from "../types";
 import PageSearchBar from "../components/PageSearchBar";
 import TenantCard from "../components/TenantCard";
+import { formatBillingCycle, formatCurrency, formatDate } from "../formatters";
 
 type Props = {
   loading: boolean;
@@ -69,12 +70,12 @@ export default function TenantWorkspacesPage({
                 </div>
                 <div className="tenant-card-fact">
                   <span>Configured price</span>
-                  <strong>{tenant.priceAmount ? `${tenant.currency} ${tenant.priceAmount}` : "Not set"}</strong>
-                  <small>{tenant.priceAmount ? `Billed ${tenant.billingCycle.toLowerCase()}` : "Add pricing in subscription settings"}</small>
+                  <strong>{formatCurrency(tenant.priceAmount, tenant.currency)}</strong>
+                  <small>{tenant.priceAmount !== null ? `Billed ${formatBillingCycle(tenant.billingCycle).toLowerCase()}` : "Add pricing in subscription settings"}</small>
                 </div>
                 <div className="tenant-card-fact">
                   <span>Valid until</span>
-                  <strong><CalendarDays size={14} /> {tenant.currentPeriodEndsAt || tenant.trialEndsAt ? new Date(tenant.currentPeriodEndsAt || tenant.trialEndsAt!).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "Not set"}</strong>
+                  <strong><CalendarDays size={14} /> {formatDate(tenant.currentPeriodEndsAt || tenant.trialEndsAt)}</strong>
                 </div>
               </div>
               {tenant.ownerEmail && <div className="tenant-card-contact"><Mail size={14} /><span>{tenant.ownerName || "Workspace owner"}</span><a href={`mailto:${tenant.ownerEmail}`}>{tenant.ownerEmail}</a></div>}

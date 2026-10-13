@@ -72,11 +72,48 @@ model Tenant {
   deactivatedAt DateTime?    @map("deactivated_at") @db.Timestamp(3)
   createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamp(3)
   updatedAt     DateTime     @updatedAt @map("updated_at") @db.Timestamp(3)
-  memberships   TenantMembership[]
-  plants        Plant[]
-  subscription  Subscription?
-  payments      Payment[]
-  auditLogs     AuditLog[]
+
+  memberships                    TenantMembership[]
+  subscription                   Subscription?
+  payments                       Payment[]
+  auditLogs                      AuditLog[]
+  plants                         Plant[]
+  products                       Product[]
+  customers                      Customer[]
+  drivers                        Driver[]
+  routes                         Route[]
+  contracts                      Contract[]
+  orders                         Order[]
+  shippingAddresses              ShippingAddress[]
+  shippingContacts               ShippingContact[]
+  shippingContactMultiples       ShippingContactsMultiple[]
+  machineDispensaries            MachineDispensary[]
+  maintenances                   Maintenance[]
+  vendors                        Vendor[]
+  reasons                        Reason[]
+  rawMaterials                   RawMaterial[]
+  rawMaterialVariants            RawMaterialVariant[]
+  rawStockTransactions           RawStockTransaction[]
+  rawDistributions               RawDistribution[]
+  rawStockLogs                   RawStockLog[]
+  rawStockForPlants              RawStockForPlant[]
+  plantProductions               PlantProduction[]
+  plantProductionDetails         PlantProductionDetail[]
+  jarTransportations             JarTransportation[]
+  jarMaintenances                JarMaintenance[]
+  jarTransportLogs               JarTransportLog[]
+  jarTransportDriverLogs         JarTransportDriverLog[]
+  digitalCards                   DigitalCard[]
+  labReports                     LabReport[]
+  distributors                   Distributor[]
+  distributorPlantOrders         DistributorPlantOrder[]
+  distributorPlantProductions    DistributorPlantProduction[]
+  distributorPlantDispatches     DistributorPlantDispatch[]
+  distributorPlantOrderAcceptances DistributorPlantOrderAcceptance[]
+  distributorPlantInventories    DistributorPlantInventory[]
+  distributorPlantAllocations    DistributorPlantAllocation[]
+  orderGenerationFailures        OrderGenerationFailure[]
+  scrabJars                      ScrabJar[]
 
   @@index([status, createdAt])
   @@map("tenants")
@@ -97,7 +134,8 @@ model Subscription {
   canceledAt            DateTime?          @map("canceled_at") @db.Timestamp(3)
   createdAt             DateTime           @default(now()) @map("created_at") @db.Timestamp(3)
   updatedAt             DateTime           @updatedAt @map("updated_at") @db.Timestamp(3)
-  tenant                Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  tenant                Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   payments              Payment[]
 
   @@unique([id, tenantId])
@@ -113,31 +151,13 @@ model TenantMembership {
   isActive  Boolean        @default(true) @map("is_active")
   createdAt DateTime       @default(now()) @map("created_at") @db.Timestamp(3)
   updatedAt DateTime       @updatedAt @map("updated_at") @db.Timestamp(3)
+
   user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   tenant    Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([userId, tenantId])
   @@index([tenantId, isActive])
   @@map("tenant_memberships")
-}
-
-model Plant {
-  id        Int       @id @default(autoincrement())
-  tenantId  String    @map("tenant_id")
-  name      String
-  address   String?
-  manager   String?
-  location  String?
-  pincode   String?
-  details   String?
-  deletedAt DateTime? @map("deleted_at") @db.Timestamp(3)
-  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
-  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
-  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-
-  @@unique([tenantId, name])
-  @@index([tenantId, deletedAt])
-  @@map("plants")
 }
 
 model Payment {
@@ -155,10 +175,11 @@ model Payment {
   confirmedAt       DateTime?     @map("confirmed_at") @db.Timestamp(3)
   createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamp(3)
   updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamp(3)
-  tenant            Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  subscription      Subscription  @relation(fields: [subscriptionId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  createdBy         User          @relation("PaymentCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  confirmedBy       User?         @relation("PaymentConfirmedBy", fields: [confirmedByUserId], references: [id], onDelete: Restrict)
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  subscription Subscription @relation(fields: [subscriptionId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  createdBy    User         @relation("PaymentCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  confirmedBy  User?        @relation("PaymentConfirmedBy", fields: [confirmedByUserId], references: [id], onDelete: Restrict)
 
   @@index([tenantId, createdAt])
   @@index([tenantId, status])
@@ -166,18 +187,19 @@ model Payment {
 }
 
 model AuditLog {
-  id         String   @id @default(cuid())
-  actorUserId Int?    @map("actor_user_id")
-  tenantId   String?  @map("tenant_id")
-  action     String
-  entityType String   @map("entity_type")
-  entityId   String?  @map("entity_id")
-  metadata   Json?
-  ipAddress  String?  @map("ip_address")
-  userAgent  String?  @map("user_agent")
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamp(3)
-  actor      User?    @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
-  tenant     Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  id          String   @id @default(cuid())
+  actorUserId Int?     @map("actor_user_id")
+  tenantId    String?  @map("tenant_id")
+  action      String
+  entityType  String   @map("entity_type")
+  entityId    String?  @map("entity_id")
+  metadata    Json?
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(3)
+
+  actor  User?   @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
 
   @@index([createdAt])
   @@index([tenantId, createdAt])
@@ -186,21 +208,1006 @@ model AuditLog {
 }
 
 model User {
-  id               Int               @id @default(autoincrement())
-  name             String
-  email            String            @unique
-  emailVerifiedAt  DateTime?         @map("email_verified_at") @db.Timestamp(3)
-  password         String
-  // Retained for legacy application compatibility. platformRole and membership.role control new SaaS authorization.
-  role             String            @default("client")
-  platformRole     PlatformRole      @default(USER) @map("platform_role")
-  rememberToken    String?           @map("remember_token")
-  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamp(3)
-  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamp(3)
-  memberships      TenantMembership[]
-  createdPayments  Payment[]         @relation("PaymentCreatedBy")
-  confirmedPayments Payment[]        @relation("PaymentConfirmedBy")
-  auditLogs        AuditLog[]         @relation("AuditActor")
+  id                Int          @id @default(autoincrement())
+  name              String
+  email             String       @unique
+  emailVerifiedAt   DateTime?    @map("email_verified_at") @db.Timestamp(3)
+  password          String
+  role              String       @default("client")
+  platformRole      PlatformRole @default(USER) @map("platform_role")
+  rememberToken     String?      @map("remember_token")
+  createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt         DateTime     @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  memberships       TenantMembership[]
+  vendors           Vendor[]
+  managedPlants     Plant[]                    @relation("PlantManager")
+  rawStockLogs      RawStockLog[]
+  uploadedLabReports LabReport[]               @relation("LabReportUploader")
+  createdPayments   Payment[]                  @relation("PaymentCreatedBy")
+  confirmedPayments Payment[]                  @relation("PaymentConfirmedBy")
+  auditLogs         AuditLog[]                 @relation("AuditActor")
 
   @@map("users")
+}
+
+model Plant {
+  id        Int       @id @default(autoincrement())
+  tenantId  String    @map("tenant_id")
+  name      String
+  address   String?
+  manager   String?
+  managerId Int?      @map("manager_id")
+  location  String?
+  pincode   String?
+  details   String?
+  vendorId  Int?      @map("vendor_id")
+  deletedAt DateTime? @map("deleted_at") @db.Timestamp(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant                    Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  managerRecord             User?                        @relation("PlantManager", fields: [managerId], references: [id], onDelete: Cascade)
+  vendor                    Vendor?                      @relation("PlantVendor", fields: [vendorId], references: [id], onDelete: Restrict)
+  routes                    Route[]
+  drivers                   Driver[]
+  shippingAddresses         ShippingAddress[]
+  rawDistributions          RawDistribution[]
+  rawStockLogs              RawStockLog[]
+  rawStockForPlants         RawStockForPlant[]
+  plantProductions          PlantProduction[]
+  jarTransportations        JarTransportation[]
+  jarMaintenances           JarMaintenance[]
+  scrabJars                 ScrabJar[]
+  distributorPlantOrders    DistributorPlantOrder[]
+  distributorPlantInventories DistributorPlantInventory[]
+  distributorPlantAllocations DistributorPlantAllocation[]
+
+  @@unique([id, tenantId])
+  @@unique([tenantId, name])
+  @@index([tenantId, deletedAt])
+  @@index([tenantId, vendorId])
+  @@map("plants")
+}
+
+model Product {
+  id          Int       @id @default(autoincrement())
+  tenantId    String    @map("tenant_id")
+  name        String
+  code        String
+  price       String?
+  description String?
+  image       String?
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamp(3)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  contracts Contract[]
+
+  @@unique([id, tenantId])
+  @@unique([tenantId, name])
+  @@unique([tenantId, code])
+  @@index([tenantId, deletedAt])
+  @@map("products")
+}
+
+model Customer {
+  id             Int       @id @default(autoincrement())
+  tenantId       String    @map("tenant_id")
+  customerZohoId String    @map("customer_zohi_id")
+  name           String
+  email          String?
+  phoneNo        String?   @map("phone_no")
+  billingAddress String    @map("billing_address")
+  billingCountry String    @map("billing_country")
+  billingState   String?   @map("billing_state")
+  billingCity    String    @map("billing_city")
+  billingPincode String    @map("billing_pincode")
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamp(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant                 Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  contracts              Contract[]
+  orders                 Order[]
+  shippingAddresses      ShippingAddress[]
+  shippingContacts       ShippingContact[]
+  machineDispensaries    MachineDispensary[]
+  orderGenerationFailures OrderGenerationFailure[]
+
+  @@unique([id, tenantId])
+  @@unique([tenantId, customerZohoId])
+  @@unique([tenantId, email])
+  @@index([tenantId, deletedAt])
+  @@index([tenantId, name])
+  @@map("customers")
+}
+
+model Contract {
+  id                  Int       @id @default(autoincrement())
+  tenantId            String    @map("tenant_id")
+  type                String    @default("contracts")
+  customerId          Int       @map("customer_id")
+  productId           Int       @map("product_id")
+  quantity            Int
+  price               Int
+  duration            Int?
+  durationType        String    @default("months") @map("duration_type")
+  date                DateTime? @db.Date
+  frequency           String    @default("monthly")
+  frequencyCount      String?   @map("frequency_count")
+  days                String?
+  status              String    @default("active")
+  sendBy              Int?      @map("send_by")
+  acceptedStatus      String?   @map("accepted_status")
+  shippingAddressesId Int?      @map("shipping_addresses_id")
+  deletedAt           DateTime? @map("deleted_at") @db.Timestamp(3)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant                        Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  customer                      Customer             @relation(fields: [customerId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  product                       Product              @relation(fields: [productId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  sender                        ShippingContact?     @relation("ContractSender", fields: [sendBy], references: [id], onDelete: Cascade)
+  shippingAddressRef            ShippingAddress?     @relation("ContractShippingAddress", fields: [shippingAddressesId], references: [id], onDelete: Cascade)
+  shippingAddressesViaContractId ShippingAddress[]   @relation("ShippingAddressContract")
+  orders                        Order[]
+  orderGenerationFailures       OrderGenerationFailure[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, customerId])
+  @@index([tenantId, productId])
+  @@index([tenantId, status])
+  @@map("contracts")
+}
+
+model Order {
+  id              Int       @id @default(autoincrement())
+  tenantId        String    @map("tenant_id")
+  shippingId      Int?      @map("shipping_id")
+  customerId      Int       @map("customer_id")
+  contractId      Int?      @map("contract_id")
+  driverId        Int?      @map("driver_id")
+  routeId         Int?      @map("route_id")
+  status          String    @default("pending")
+  deliveredQty    String?   @default("0") @map("develivered_qty")
+  returnQty       String?   @default("0") @map("return_qty")
+  deliveredCardImg String?  @map("delevered_card_img")
+  returnCardImg   String?   @map("return_card_img")
+  type            String    @default("contracts")
+  inProgressAt    DateTime? @map("in_progress_at") @db.Timestamp(3)
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamp(3)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  customer        Customer         @relation(fields: [customerId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  contract        Contract?        @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  driver          Driver?          @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  shippingAddress ShippingAddress? @relation(fields: [shippingId], references: [id], onDelete: Cascade)
+  route           Route?           @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  digitalCards    DigitalCard[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, customerId])
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+  @@map("orders")
+}
+
+model Route {
+  id        Int       @id @default(autoincrement())
+  tenantId  String    @map("tenant_id")
+  plantId   Int?      @map("plant_id")
+  vendorId  Int?      @map("vendor_id")
+  name      String
+  path      String
+  deletedAt DateTime? @map("deleted_at") @db.Timestamp(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant            Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  plant             Plant?            @relation(fields: [plantId], references: [id], onDelete: Cascade)
+  vendor            Vendor?           @relation("RouteVendor", fields: [vendorId], references: [id], onDelete: Restrict)
+  drivers           Driver[]
+  shippingAddresses ShippingAddress[]
+  orders            Order[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, plantId])
+  @@index([tenantId, vendorId])
+  @@map("routes")
+}
+
+model Driver {
+  id            Int       @id @default(autoincrement())
+  tenantId      String    @map("tenant_id")
+  plantId       Int?      @map("plant_id")
+  routeId       Int?      @map("route_id")
+  routePath     String?   @map("route_path")
+  vendorId      Int?      @map("vendor_id")
+  name          String
+  email         String
+  phoneNo       String    @map("phone_no")
+  fullAddress   String    @map("full_address")
+  country       String
+  state         String
+  city          String
+  pincode       String
+  licenseNo     String?   @map("license_no")
+  vehicleNo     String?   @map("vehicle_no")
+  vehicleName   String?   @map("vehicle_name")
+  panCard       String?   @map("pan_card")
+  aadharCard    String?   @map("aadhar_card")
+  panCardFile   String?   @map("pan_card_FILE")
+  aadharCardFile String?  @map("aadhar_card_FILE")
+  otp           String?
+  otpExpiresAt  DateTime? @map("otp_expires_at") @db.Timestamp(3)
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamp(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant               Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  plant                Plant?                   @relation(fields: [plantId], references: [id], onDelete: Cascade)
+  route                Route?                   @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  vendor               Vendor?                  @relation("DriverVendor", fields: [vendorId], references: [id], onDelete: Restrict)
+  orders               Order[]
+  shippingAddresses   ShippingAddress[]
+  maintenances         Maintenance[]
+  jarTransportations   JarTransportation[]
+  jarMaintenances      JarMaintenance[]
+  jarTransportDriverLogs JarTransportDriverLog[]
+
+  @@unique([id, tenantId])
+  @@unique([tenantId, email])
+  @@index([tenantId, plantId])
+  @@index([tenantId, routeId])
+  @@index([tenantId, vendorId])
+  @@index([tenantId, deletedAt])
+  @@map("drivers")
+}
+
+model Maintenance {
+  id        Int       @id @default(autoincrement())
+  tenantId  String    @map("tenant_id")
+  driverId  Int       @map("driver_id")
+  type      String
+  description String?
+  amount    String
+  image     String?
+  status    String    @default("pending")
+  date      String?
+  deletedAt DateTime? @map("deleted_at") @db.Timestamp(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  driver Driver @relation(fields: [driverId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, driverId])
+  @@index([tenantId, status])
+  @@map("maintenances")
+}
+
+model ShippingAddress {
+  id                  Int       @id @default(autoincrement())
+  tenantId            String    @map("tenant_id")
+  customerId          Int?      @map("customer_id")
+  contractId          Int?      @map("contract_id")
+  plantId             Int?      @map("plant_id")
+  routeId             Int?      @map("route_id")
+  driverId            Int?      @map("driver_id")
+  vendorId            Int?      @map("vendor_id")
+  type                String?   @default("local")
+  shippingAddress     String?   @map("shipping_address")
+  email               String?
+  shippingCountry     String?   @map("shipping_country")
+  shippingState       String?   @map("shipping_state")
+  shippingCity        String?   @map("shipping_city")
+  shippingPincode     String?   @map("shipping_pincode")
+  machineDeployed     String    @default("No") @map("machine_deployed")
+  machineDeployedDate DateTime? @map("machine_deployed_date") @db.Date
+  poNo                String?   @map("po_no")
+  deletedAt           DateTime? @map("deleted_at") @db.Timestamp(3)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant              Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  customer            Customer?                 @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  contract            Contract?                 @relation("ShippingAddressContract", fields: [contractId], references: [id], onDelete: Cascade)
+  referencedByContracts Contract[]               @relation("ContractShippingAddress")
+  plant               Plant?                    @relation(fields: [plantId], references: [id], onDelete: Cascade)
+  route               Route?                    @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  driver              Driver?                   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  vendor              Vendor?                   @relation("ShippingAddressVendor", fields: [vendorId], references: [id], onDelete: Cascade)
+  contactLinks        ShippingContactsMultiple[]
+  machineDispensaries MachineDispensary[]
+  orders              Order[]
+  orderGenerationFailures OrderGenerationFailure[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, customerId])
+  @@index([tenantId, plantId])
+  @@index([tenantId, routeId])
+  @@index([tenantId, driverId])
+  @@index([tenantId, vendorId])
+  @@index([tenantId, deletedAt])
+  @@map("shipping_addresses")
+}
+
+model ShippingContact {
+  id        Int       @id @default(autoincrement())
+  tenantId  String    @map("tenant_id")
+  customerId Int?     @map("customer_id")
+  name      String
+  phone     String
+  password  String?
+  deletedAt DateTime? @map("deleted_at") @db.Timestamp(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant             Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  customer           Customer?                 @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  contactLinks       ShippingContactsMultiple[]
+  contractsSent     Contract[]                @relation("ContractSender")
+  digitalCardsAccepted DigitalCard[]             @relation("DigitalCardAcceptedBy")
+
+  @@unique([id, tenantId])
+  @@index([tenantId, customerId])
+  @@map("shipping_contacts")
+}
+
+model ShippingContactsMultiple {
+  id                Int       @id @default(autoincrement())
+  tenantId          String    @map("tenant_id")
+  shippingId        Int       @map("shipping_id")
+  shippingContactsId Int      @map("shipping_contacts_id")
+  mode              String    @default("main")
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamp(3)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  shippingAddress ShippingAddress @relation(fields: [shippingId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  shippingContact ShippingContact @relation(fields: [shippingContactsId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, shippingId])
+  @@index([tenantId, shippingContactsId])
+  @@map("shipping_contacts_multiples")
+}
+
+model MachineDispensary {
+  id           Int       @id @default(autoincrement())
+  tenantId     String    @map("tenant_id")
+  modelName    String    @map("model_name")
+  serialNumber String    @map("serial_number")
+  machineType  String    @map("machine_type")
+  customerId   Int?      @map("customer_id")
+  shippingId   Int?      @map("shipping_id")
+  documents    String?
+  warranty     String
+  garanty      String
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamp(3)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  customer        Customer?       @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  shippingAddress ShippingAddress? @relation(fields: [shippingId], references: [id], onDelete: Cascade)
+
+  @@unique([id, tenantId])
+  @@index([tenantId, customerId])
+  @@index([tenantId, shippingId])
+  @@map("machine_dispensaries")
+}
+
+model Vendor {
+  id          Int       @id @default(autoincrement())
+  tenantId    String    @map("tenant_id")
+  userId      Int       @map("user_id")
+  address     String
+  phoneNumber String    @map("phone_number")
+  city        String
+  state       String
+  zipCode     String    @map("zip_code")
+  country     String
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamp(3)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant            Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plants            Plant[]           @relation("PlantVendor")
+  routes            Route[]           @relation("RouteVendor")
+  drivers           Driver[]          @relation("DriverVendor")
+  shippingAddresses ShippingAddress[] @relation("ShippingAddressVendor")
+
+  @@unique([id, tenantId])
+  @@unique([tenantId, userId])
+  @@index([tenantId, deletedAt])
+  @@map("vendors")
+}
+
+model Reason {
+  id        Int       @id @default(autoincrement())
+  tenantId  String    @map("tenant_id")
+  forRole   String    @default("client") @map("for")
+  reasons   String
+  deletedAt DateTime? @map("deleted_at") @db.Timestamp(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, forRole])
+  @@map("reasons")
+}
+
+model RawMaterial {
+  id        Int       @id @default(autoincrement())
+  tenantId  String    @map("tenant_id")
+  name      String
+  deletedAt DateTime? @map("deleted_at") @db.Timestamp(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant           Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  variants         RawMaterialVariant[]
+  productionDetails PlantProductionDetail[]
+  stockLogs        RawStockLog[]
+
+  @@unique([id, tenantId])
+  @@unique([tenantId, name])
+  @@index([tenantId, deletedAt])
+  @@map("raw_materials")
+}
+
+model RawMaterialVariant {
+  id             Int       @id @default(autoincrement())
+  tenantId       String    @map("tenant_id")
+  rawMaterialId  Int       @map("raw_material_id")
+  variantName    String    @map("variant_name")
+  totalQuantity  Int       @default(0) @map("total_quantity")
+  remainQuantity Int       @default(0) @map("remain_quantity")
+  type           String?   @default("main")
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamp(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant               Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  rawMaterial          RawMaterial          @relation(fields: [rawMaterialId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  transactions         RawStockTransaction[]
+  rawStockForPlants    RawStockForPlant[]
+  jarMaintenances      JarMaintenance[]
+
+  @@unique([id, tenantId])
+  @@unique([tenantId, rawMaterialId, variantName])
+  @@index([tenantId, rawMaterialId])
+  @@index([tenantId, deletedAt])
+  @@map("raw_material_variants")
+}
+
+model RawStockTransaction {
+  id                    Int       @id @default(autoincrement())
+  tenantId              String    @map("tenant_id")
+  rawMaterialVariantId  Int       @map("raw_material_variant_id")
+  type                  String
+  quantity              Int
+  deletedAt             DateTime? @map("deleted_at") @db.Timestamp(3)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant       Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  variant      RawMaterialVariant @relation(fields: [rawMaterialVariantId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  distributions RawDistribution[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, rawMaterialVariantId])
+  @@index([tenantId, type])
+  @@map("raw_stock_transactions")
+}
+
+model RawDistribution {
+  id                     Int       @id @default(autoincrement())
+  tenantId               String    @map("tenant_id")
+  rawStockTransactionsId Int       @map("raw_stock_transactions_id")
+  plantId                Int       @map("plant_id")
+  quantity               Decimal   @db.Decimal(12, 2)
+  status                 String    @default("pending")
+  acceptedAt             DateTime? @map("accepted_at") @db.Timestamp(3)
+  deletedAt              DateTime? @map("deleted_at") @db.Timestamp(3)
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  transaction RawStockTransaction @relation(fields: [rawStockTransactionsId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  plant       Plant              @relation(fields: [plantId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, plantId])
+  @@index([tenantId, status])
+  @@map("raw_distributions")
+}
+
+model RawStockLog {
+  id          Int       @id @default(autoincrement())
+  tenantId    String    @map("tenant_id")
+  rawMaterialId Int     @map("raw_material_id")
+  userId      Int       @map("user_id")
+  plantId     Int?      @map("plant_id")
+  action      String
+  quantity    Decimal   @db.Decimal(12, 2)
+  note        String?
+  actionTime  DateTime  @default(now()) @map("action_time") @db.Timestamp(3)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamp(3)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  rawMaterial RawMaterial @relation(fields: [rawMaterialId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plant       Plant?      @relation(fields: [plantId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, rawMaterialId, actionTime])
+  @@index([tenantId, plantId])
+  @@map("raw_stock_logs")
+}
+
+model RawStockForPlant {
+  id                    Int       @id @default(autoincrement())
+  tenantId              String    @map("tenant_id")
+  plantId               Int       @map("plant_id")
+  rawMaterialVariantsId Int       @map("raw_material_variants_id")
+  totalQuantity         Int       @default(0) @map("total_quantity")
+  totalProductionQuantity Int     @default(0) @map("total_production_quantity")
+  deletedAt             DateTime? @map("deleted_at") @db.Timestamp(3)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  plant             Plant              @relation(fields: [plantId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  rawMaterialVariant RawMaterialVariant @relation(fields: [rawMaterialVariantsId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([tenantId, plantId, rawMaterialVariantsId])
+  @@index([tenantId, deletedAt])
+  @@map("raw_stock_for_plants")
+}
+
+model PlantProduction {
+  id             Int      @id @default(autoincrement())
+  tenantId       String   @map("tenant_id")
+  plantId        Int      @map("plant_id")
+  quantity       String
+  productionDate DateTime @map("production_date") @db.Date
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant  Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  plant   Plant                  @relation(fields: [plantId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  details PlantProductionDetail[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, plantId, productionDate])
+  @@map("plant_productions")
+}
+
+model PlantProductionDetail {
+  id               Int      @id @default(autoincrement())
+  tenantId         String   @map("tenant_id")
+  plantProductionId Int      @map("plant_production_id")
+  rawMaterialId    Int      @map("raw_material_id")
+  quantity         String
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  plantProduction PlantProduction @relation(fields: [plantProductionId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  rawMaterial    RawMaterial    @relation(fields: [rawMaterialId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, plantProductionId])
+  @@index([tenantId, rawMaterialId])
+  @@map("plant_production_details")
+}
+
+model JarTransportation {
+  id                Int       @id @default(autoincrement())
+  tenantId          String    @map("tenant_id")
+  plantId           Int       @map("plant_id")
+  driverId          Int       @map("driver_id")
+  date              DateTime  @db.Date
+  status            String    @default("dispatching")
+  totalQuantity     BigInt?   @map("total_quantity")
+  allocatedQuantity BigInt?   @map("allocated_quantity")
+  allocatQuantity   BigInt?   @map("allocat_quantity")
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamp(3)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant    Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  plant     Plant              @relation(fields: [plantId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  driver    Driver             @relation(fields: [driverId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  logs      JarTransportLog[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, plantId, date])
+  @@index([tenantId, driverId, date])
+  @@map("jar_transportations")
+}
+
+model JarMaintenance {
+  id                    Int       @id @default(autoincrement())
+  tenantId              String    @map("tenant_id")
+  plantId               Int       @map("plant_id")
+  driverId              Int       @map("driver_id")
+  rawMaterialVariantsId Int       @map("raw_material_variants_id")
+  date                  DateTime  @db.Date
+  type                  String
+  qty                   String
+  status                String    @default("pending")
+  deletedAt             DateTime? @map("deleted_at") @db.Timestamp(3)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant             Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  plant              Plant              @relation(fields: [plantId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  driver             Driver             @relation(fields: [driverId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  rawMaterialVariant RawMaterialVariant @relation(fields: [rawMaterialVariantsId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, plantId, date])
+  @@index([tenantId, driverId])
+  @@map("jar_maintances")
+}
+
+model JarTransportLog {
+  id                  Int       @id @default(autoincrement())
+  tenantId            String    @map("tenant_id")
+  jarTransportationId Int       @map("jar_transportation_id")
+  action              String
+  date                DateTime  @db.Date
+  quantity            BigInt
+  stocks              Json
+  deletedAt           DateTime? @map("deleted_at") @db.Timestamp(3)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant           Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  jarTransportation JarTransportation    @relation(fields: [jarTransportationId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  driverLogs       JarTransportDriverLog[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, jarTransportationId, date])
+  @@map("jar_transport_logs")
+}
+
+model JarTransportDriverLog {
+  id                Int       @id @default(autoincrement())
+  tenantId          String    @map("tenant_id")
+  driverId          Int       @map("driver_id")
+  jarTransportLogId Int       @map("jar_transport_log_id")
+  action            String
+  status            String    @default("pending")
+  remark            String?
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamp(3)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  driver          Driver          @relation(fields: [driverId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  jarTransportLog JarTransportLog @relation(fields: [jarTransportLogId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([jarTransportLogId, action], map: "unique_log_action")
+  @@index([tenantId, driverId])
+  @@map("jar_transport_driver_logs")
+}
+
+model DigitalCard {
+  id        Int       @id @default(autoincrement())
+  tenantId  String    @map("tenant_id")
+  orderId   Int       @map("order_id")
+  balance   Int       @default(0)
+  acceptBy  Int?      @map("accept_by")
+  deletedAt DateTime? @map("deleted_at") @db.Timestamp(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  order    Order           @relation(fields: [orderId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  acceptBy ShippingContact? @relation("DigitalCardAcceptedBy", fields: [acceptBy], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, orderId])
+  @@map("digital_cards")
+}
+
+model LabReport {
+  id         Int       @id @default(autoincrement())
+  tenantId   String    @map("tenant_id")
+  reportName String    @map("report_name")
+  title      String?
+  filePath   String    @map("file_path")
+  versionNo  Int       @default(1) @map("version_no")
+  parentId   Int?      @map("parent_id")
+  reportDate DateTime? @map("report_date") @db.Date
+  expiryDate DateTime? @map("expiry_date") @db.Date
+  uploadedBy Int?      @map("uploaded_by")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant   Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  parent   LabReport?  @relation("LabReportVersions", fields: [parentId], references: [id], onDelete: SetNull)
+  versions LabReport[] @relation("LabReportVersions")
+  uploader User?       @relation("LabReportUploader", fields: [uploadedBy], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, parentId])
+  @@index([tenantId, reportName])
+  @@index([tenantId, expiryDate])
+  @@map("lab_reports")
+}
+
+model Distributor {
+  id           Int       @id @default(autoincrement())
+  tenantId     String    @map("tenant_id")
+  zohoId       String    @map("zoho_id")
+  name         String
+  email        String
+  password     String?
+  phoneNo      String    @map("phone_no")
+  fullAddress  String    @map("full_address")
+  country      String
+  state        String
+  city         String
+  pincode      String
+  poNo         String?   @map("po_no")
+  licenseNo    String?   @map("license_no")
+  tempoNo      String?   @map("tempo_no")
+  tempoName    String?   @map("tempo_name")
+  panCard      String?   @map("pan_card")
+  aadharCard   String?   @map("aadhar_card")
+  panCardFile  String?   @map("pan_card_FILE")
+  aadharCardFile String? @map("aadhar_card_FILE")
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamp(3)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant                    Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  orders                    DistributorPlantOrder[]
+  plantInventories          DistributorPlantInventory[]
+  plantAllocations          DistributorPlantAllocation[]
+
+  @@unique([id, tenantId])
+  @@unique([tenantId, zohoId])
+  @@unique([tenantId, email])
+  @@index([tenantId, deletedAt])
+  @@map("distributors")
+}
+
+model DistributorPlantOrder {
+  id                     Int       @id @default(autoincrement())
+  tenantId               String    @map("tenant_id")
+  plantId                Int       @map("plant_id")
+  distributorId          Int       @map("distributor_id")
+  deliveredJars          Int       @map("delivered_jars")
+  usedPreviousStock      Int       @default(0) @map("used_previous_stock")
+  requiredLabeledJars    Int       @default(0) @map("required_labeled_jars")
+  requiredUnlabeledJars  Int       @default(0) @map("required_unlabeled_jars")
+  jarsWithLabel          Json?     @map("jars_with_label")
+  allowRemainingStock    Boolean   @default(true) @map("allow_remaining_stock")
+  status                 String    @default("pending")
+  approvedAt             DateTime? @map("approved_at") @db.Timestamp(3)
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant       Tenant                      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  plant        Plant                       @relation(fields: [plantId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  distributor  Distributor                 @relation(fields: [distributorId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  productions  DistributorPlantProduction[]
+  dispatches   DistributorPlantDispatch[]
+  acceptances  DistributorPlantOrderAcceptance[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, plantId, status])
+  @@index([tenantId, distributorId, createdAt])
+  @@map("distributor_plant_orders")
+}
+
+model DistributorPlantProduction {
+  id                       Int       @id @default(autoincrement())
+  tenantId                 String    @map("tenant_id")
+  distributorPlantOrdersId Int       @map("distributor_plant_orders_id")
+  deliveredJars            Int       @map("delivered_jars")
+  usedPreviousStock        Int       @map("used_previous_stock")
+  totalAvailable           Int       @map("total_available")
+  leakJars                 Int       @default(0) @map("leak_jars")
+  greenJars                Int       @default(0) @map("green_jars")
+  usableJars               Int       @map("usable_jars")
+  labeledJars              Int       @map("labeled_jars")
+  unlabeledJars            Int       @map("unlabeled_jars")
+  labelBreakdown           Json?     @map("label_breakdown")
+  remainingStock           Int       @default(0) @map("remaining_stock")
+  startedAt                DateTime? @map("started_at") @db.Timestamp(3)
+  completedAt              DateTime? @map("completed_at") @db.Timestamp(3)
+  createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt                DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  order  DistributorPlantOrder  @relation(fields: [distributorPlantOrdersId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, distributorPlantOrdersId])
+  @@map("distributor_plant_productions")
+}
+
+model DistributorPlantDispatch {
+  id                       Int       @id @default(autoincrement())
+  tenantId                 String    @map("tenant_id")
+  distributorPlantOrdersId Int       @map("distributor_plant_orders_id")
+  dispatchedLabeledJars    Int       @map("dispatched_labeled_jars")
+  dispatchedUnlabeledJars  Int       @default(0) @map("dispatched_unlabeled_jars")
+  labelBreakdown           Json?     @map("label_breakdown")
+  dispatchedAt             DateTime? @map("dispatched_at") @db.Timestamp(3)
+  createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt                DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  order  DistributorPlantOrder @relation(fields: [distributorPlantOrdersId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, distributorPlantOrdersId])
+  @@map("distributor_plant_dispatches")
+}
+
+model DistributorPlantOrderAcceptance {
+  id                       Int       @id @default(autoincrement())
+  tenantId                 String    @map("tenant_id")
+  distributorPlantOrdersId Int       @map("distributor_plant_orders_id")
+  receivedLabeledJars      Int       @map("received_labeled_jars")
+  receivedUnlabeledJars    Int       @default(0) @map("received_unlabeled_jars")
+  damagedJars              Int       @default(0) @map("damaged_jars")
+  remarks                  String?
+  status                   String    @default("accepted")
+  acceptedAt               DateTime? @map("accepted_at") @db.Timestamp(3)
+  createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt                DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  order  DistributorPlantOrder @relation(fields: [distributorPlantOrdersId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, distributorPlantOrdersId])
+  @@map("distributor_plant_order_acceptances")
+}
+
+model DistributorPlantInventory {
+  id                    Int      @id @default(autoincrement())
+  tenantId              String   @map("tenant_id")
+  plantId               Int      @map("plant_id")
+  distributorId         Int      @map("distributor_id")
+  emptyJars             Int      @default(0) @map("empty_jars")
+  filledUnlabeledJars   Int      @default(0) @map("filled_unlabeled_jars")
+  labeledJars           Json?    @map("labeled_jars")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  plant       Plant       @relation(fields: [plantId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  distributor Distributor @relation(fields: [distributorId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([tenantId, plantId, distributorId])
+  @@index([tenantId, distributorId])
+  @@map("distributor_plant_inventories")
+}
+
+model DistributorPlantAllocation {
+  id            Int      @id @default(autoincrement())
+  tenantId      String   @map("tenant_id")
+  distributorId Int      @map("distributor_id")
+  plantId       Int      @map("plant_id")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  distributor Distributor @relation(fields: [distributorId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  plant       Plant       @relation(fields: [plantId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([distributorId, plantId], map: "distributor_plant_unique")
+  @@index([tenantId, plantId])
+  @@map("distributor_plant_allocations")
+}
+
+model OrderGenerationFailure {
+  id          Int       @id @default(autoincrement())
+  tenantId    String    @map("tenant_id")
+  contractId  Int?      @map("contract_id")
+  customerId  Int?      @map("customer_id")
+  shippingId  Int?      @map("shipping_id")
+  failureDate DateTime  @map("failure_date") @db.Date
+  source      String    @default("contract_scheduler")
+  reason      String
+  details     String?
+  attemptedAt DateTime  @map("attempted_at") @db.Timestamp(3)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant   Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  contract Contract?        @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  customer Customer?        @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  shipping ShippingAddress? @relation(fields: [shippingId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, failureDate, source])
+  @@index([tenantId, contractId])
+  @@index([tenantId, customerId])
+  @@map("order_generation_failures")
+}
+
+model ScrabJar {
+  id        Int      @id @default(autoincrement())
+  tenantId  String   @map("tenant_id")
+  plantId   Int      @map("plant_id")
+  qty       String
+  amount    String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  plant  Plant  @relation(fields: [plantId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, plantId, createdAt])
+  @@map("scrab_jars")
+}
+
+// App release metadata applies across tenants and therefore stays platform-wide.
+model AppVersion {
+  id                  Int      @id @default(autoincrement())
+  target              String   @map("for")
+  platform            String
+  latestVersion       String   @map("latest_version")
+  minSupportedVersion String   @map("min_supported_version")
+  storeUrl            String   @map("store_url")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  @@index([target, platform])
+  @@map("app_versions")
+}
+
+model PasswordResetToken {
+  email     String   @id
+  token     String
+  createdAt DateTime? @map("created_at") @db.Timestamp(3)
+
+  @@map("password_reset_tokens")
+}
+
+model PasswordReset {
+  email     String
+  token     String
+  createdAt DateTime? @map("created_at") @db.Timestamp(3)
+
+  @@index([email], map: "password_resets_email_index")
+  @@ignore
+  @@map("password_resets")
+}
+
+model FailedJob {
+  id         BigInt   @id @default(autoincrement())
+  uuid       String   @unique
+  connection String   @db.Text
+  queue      String   @db.Text
+  payload    String   @db.Text
+  exception  String   @db.Text
+  failedAt   DateTime @default(now()) @map("failed_at") @db.Timestamp(3)
+
+  @@map("failed_jobs")
+}
+
+model PersonalAccessToken {
+  id            BigInt    @id @default(autoincrement())
+  tokenableType String    @map("tokenable_type")
+  tokenableId   BigInt    @map("tokenable_id")
+  name          String
+  token         String    @unique @db.VarChar(64)
+  abilities     String?   @db.Text
+  lastUsedAt    DateTime? @map("last_used_at") @db.Timestamp(3)
+  expiresAt     DateTime? @map("expires_at") @db.Timestamp(3)
+  createdAt     DateTime? @map("created_at") @db.Timestamp(3)
+  updatedAt     DateTime? @map("updated_at") @db.Timestamp(3)
+
+  @@index([tokenableType, tokenableId], map: "personal_access_tokens_tokenable_type_tokenable_id_index")
+  @@map("personal_access_tokens")
 }
