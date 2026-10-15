@@ -32,6 +32,19 @@ enum MembershipRole {
   STAFF
 }
 
+enum TenantModule {
+  PLANTS
+  DRIVERS
+  CUSTOMERS
+  VENDORS
+  DISTRIBUTORS
+}
+
+enum PlantCoverageType {
+  LOCAL
+  PAN_INDIA
+}
+
 enum SubscriptionStatus {
   TRIAL
   ACTIVE
@@ -80,6 +93,8 @@ model Tenant {
   updatedAt              DateTime     @updatedAt @map("updated_at") @db.Timestamp(3)
 
   memberships                      TenantMembership[]
+  moduleAccess                     TenantModuleAccess[]
+  rolePermissions                  TenantRolePermission[]
   subscription                     Subscription?
   payments                         Payment[]
   auditLogs                        AuditLog[]
@@ -167,6 +182,40 @@ model TenantMembership {
   @@map("tenant_memberships")
 }
 
+model TenantModuleAccess {
+  id        String       @id @default(cuid())
+  tenantId  String       @map("tenant_id")
+  module    TenantModule
+  isEnabled Boolean      @default(true) @map("is_enabled")
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, module])
+  @@index([module, isEnabled])
+  @@map("tenant_module_access")
+}
+
+model TenantRolePermission {
+  id        String         @id @default(cuid())
+  tenantId  String         @map("tenant_id")
+  role      MembershipRole
+  module    TenantModule
+  canView   Boolean        @default(true) @map("can_view")
+  canCreate Boolean        @default(false) @map("can_create")
+  canEdit   Boolean        @default(false) @map("can_edit")
+  canDelete Boolean        @default(false) @map("can_delete")
+  createdAt DateTime       @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt DateTime       @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, role, module])
+  @@index([tenantId, role])
+  @@map("tenant_role_permissions")
+}
+
 model Payment {
   id                String        @id @default(cuid())
   tenantId          String        @map("tenant_id")
@@ -251,21 +300,23 @@ model User {
 // -----------------------------------------------------------------------------
 
 model Plant {
-  id             Int       @id @default(autoincrement())
-  tenantId       String    @map("tenant_id")
+  id             Int               @id @default(autoincrement())
+  tenantId       String            @map("tenant_id")
   name           String
-  normalizedName String    @map("normalized_name")
+  normalizedName String            @map("normalized_name")
   address        String?
   manager        String?
-  managerId      Int?      @map("manager_id")
+  managerEmail   String?           @map("manager_email")
+  coverageType   PlantCoverageType @default(LOCAL) @map("coverage_type")
+  managerId      Int?              @map("manager_id")
   location       String?
   pincode        String?
   details        String?
-  vendorId       Int?      @map("vendor_id")
-  isActive       Boolean   @default(true) @map("is_active")
-  deletedAt      DateTime? @map("deleted_at") @db.Timestamp(3)
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
-  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+  vendorId       Int?              @map("vendor_id")
+  isActive       Boolean           @default(true) @map("is_active")
+  deletedAt      DateTime?         @map("deleted_at") @db.Timestamp(3)
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt      DateTime          @updatedAt @map("updated_at") @db.Timestamp(3)
 
   tenant                      Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   managerRecord               User?                        @relation("PlantManager", fields: [managerId], references: [id], onDelete: Cascade)

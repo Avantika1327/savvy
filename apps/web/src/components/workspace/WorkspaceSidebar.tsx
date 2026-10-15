@@ -1,25 +1,28 @@
 import { ArrowUpRight, ChevronDown, CircleHelp, Droplets, Factory } from "lucide-react";
-import { workspaceNavigation } from "../../data/dashboardData";
-import type { WorkspacePage } from "../../types/dashboard";
+import { workspaceNavigationForRole, workspaceUrl } from "../../data/dashboardData";
+import type { WorkspacePage, WorkspaceRole } from "../../types/dashboard";
 
 type Props = {
   tenantName: string;
   userName: string;
   active: WorkspacePage;
   mobileOpen: boolean;
-  onNavigate: (page: WorkspacePage) => void;
+  workspaceRole: WorkspaceRole;
+  onNavigate: (url: string) => void;
   onCloseMobile: () => void;
   onLogout: () => void;
 };
 
 function initials(name: string): string {
-  return name
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "")
-    .join("") || "U";
+  return (
+    name
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() ?? "")
+      .join("") || "U"
+  );
 }
 
 export default function WorkspaceSidebar({
@@ -27,12 +30,18 @@ export default function WorkspaceSidebar({
   userName,
   active,
   mobileOpen,
+  workspaceRole,
   onNavigate,
   onCloseMobile,
   onLogout,
 }: Props) {
+  const navigation = workspaceNavigationForRole(workspaceRole);
+
   return (
-    <aside className={`sidebar ${mobileOpen ? "show" : ""}`}>
+    <aside
+      className={`sidebar ${mobileOpen ? "show" : ""}`}
+      aria-label="Workspace navigation"
+    >
       <div className="brand">
         <div className="brand-mark"><Droplets size={22} /></div>
         <div>
@@ -50,27 +59,32 @@ export default function WorkspaceSidebar({
         <ChevronDown size={16} className="muted" />
       </div>
 
-      {workspaceNavigation.map((group) => (
-        <div className="nav-group" key={group.section}>
-          <p>{group.section}</p>
-          {group.items.map(({ label, icon: Icon }) => (
-            <button
-              key={label}
-              type="button"
-              onClick={() => {
-                onNavigate(label);
-                onCloseMobile();
-              }}
-              className={`nav-item ${active === label ? "active" : ""}`}
-              aria-current={active === label ? "page" : undefined}
-            >
-              <Icon size={18} />
-              <span>{label}</span>
-              {label === "Raw Materials Stock" && <i aria-label="3 alerts">3</i>}
-            </button>
-          ))}
-        </div>
-      ))}
+      <nav className="workspace-navigation">
+        {navigation.map((group) => (
+          <div className="nav-group" key={group.section}>
+            <p>{group.section}</p>
+            {group.items.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => {
+                    onNavigate(workspaceUrl(item.key));
+                    onCloseMobile();
+                  }}
+                  className={`nav-item ${active === item.label ? "active" : ""}`}
+                  aria-current={active === item.label ? "page" : undefined}
+                >
+                  <Icon size={18} />
+                  <span>{item.label}</span>
+                  {item.key === "raw-materials-stock" && <i aria-label="3 alerts">3</i>}
+                </button>
+              );
+            })}
+          </div>
+        ))}
+      </nav>
 
       <div className="sidebar-bottom">
         <div className="help">

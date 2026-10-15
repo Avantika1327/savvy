@@ -1,5 +1,6 @@
-import { CalendarDays, MapPin, Pencil, Power, UserRound } from "lucide-react";
+import { CalendarDays, Globe2, Mail, MapPin, Pencil, Power, UserRound } from "lucide-react";
 import type { Plant } from "../../../types/plant";
+import { sanitizeRichTextHtml } from "../../../utils/richText";
 
 type Props = {
   plant: Plant;
@@ -37,10 +38,17 @@ export default function PlantCard({ plant, busy, canManage, onEdit, onToggleActi
       <div className="plant-card-info">
         <div><MapPin size={15} /><span>{[plant.location, plant.address, plant.pincode].filter(Boolean).join(" · ") || "No location details added"}</span></div>
         <div><UserRound size={15} /><span>{plant.manager || "Manager not assigned"}</span></div>
+        {plant.managerEmail && <div><Mail size={15} /><span>{plant.managerEmail}</span></div>}
+        <div><Globe2 size={15} /><span>{plant.coverageType === "PAN_INDIA" ? "Pan India" : "Local"} coverage</span></div>
         <div><CalendarDays size={15} /><span>Added {formatCreatedAt(plant.createdAt)}</span></div>
       </div>
 
-      {plant.details && <p className="plant-card-details">{plant.details}</p>}
+      {plant.details && (
+        <div
+          className="plant-card-details plant-card-rich-details"
+          dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(plant.details) }}
+        />
+      )}
 
       {canManage && (
         <div className="plant-card-footer">

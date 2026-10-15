@@ -1,4 +1,4 @@
-import { CalendarDays, CreditCard, Eye, Mail, Power, Trash2, Users } from "lucide-react";
+import { ArrowUpRight, CalendarDays, CreditCard, Eye, History,Trash2, Mail, Power, Users } from "lucide-react";
 import type { Tenant, TenantStatus } from "../types";
 import PageSearchBar from "../components/PageSearchBar";
 import TenantCard from "../components/TenantCard";
@@ -57,6 +57,9 @@ export default function TenantWorkspacesPage({
                   <button className="page-card-secondary-action" onClick={() => onOpenTenant(tenant)}>
                     <CreditCard size={15} /> Manage billing
                   </button>
+                  <button className="page-card-primary-action" onClick={() => onOpenTenant(tenant)}>
+                    <History size={15} /> Manage workspace
+                  </button>
                   <button
                     className="page-card-secondary-action"
                     disabled={tenant.effectiveStatus === "EXPIRED" || tenant.effectiveStatus === "PAYMENT_PENDING"}
@@ -65,6 +68,7 @@ export default function TenantWorkspacesPage({
                   >
                     <Power size={15} /> {tenant.status === "SUSPENDED" ? "Reactivate" : "Suspend"}
                   </button>
+                  <ArrowUpRight size={15} className="page-card-action-mark" />
                 </>
               }
             >

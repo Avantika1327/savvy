@@ -1,5 +1,28 @@
 import type { LucideIcon } from "lucide-react";
 
+/** Roles supported by the Savvy workspace navigation. */
+export type WorkspaceRole = "admin" | "vendor" | "plant-manager" | "staff";
+
+/** Stable identifiers used by navigation items and URL helpers. */
+export type WorkspaceModuleKey =
+  | "dashboard"
+  | "plants"
+  | "routes"
+  | "drivers"
+  | "products"
+  | "customers"
+  | "dispensary"
+  | "orders"
+  | "orders-request"
+  | "maintenance"
+  | "vendor"
+  | "raw-materials-stock"
+  | "reasons"
+  | "reports"
+  | "lab-reports"
+  | "distributor";
+
+/** Display labels shown in the workspace sidebar. */
 export type WorkspacePage =
   | "Dashboards"
   | "Plants"
@@ -14,15 +37,23 @@ export type WorkspacePage =
   | "Vendor"
   | "Raw Materials Stock"
   | "Reasons"
-  | "Reports";
+  | "Overall Reports"
+  | "Lab Reports"
+  | "Distributor";
 
 export type WorkspaceNavItem = {
+  key: WorkspaceModuleKey;
   label: WorkspacePage;
+  /** Original Laravel URL segment; an empty string represents /workspace. */
+  route: string;
   icon: LucideIcon;
+  description: string;
+  roles: WorkspaceRole[];
 };
 
 export type WorkspaceNavGroup = {
   section: string;
+  roles: WorkspaceRole[];
   items: WorkspaceNavItem[];
 };
 

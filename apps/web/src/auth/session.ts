@@ -3,9 +3,9 @@ import type { PlatformRole, Session } from "../authTypes";
 const PLATFORM_ROLES: readonly PlatformRole[] = ["USER", "SUPER_ADMIN"];
 
 /**
- * Build a display-only session object from an untrusted value.
- * Access tokens and any unknown fields are deliberately not persisted.
- * Authorization must always be enforced by the API, not by this object.
+ * Convert untrusted login data into display-only session metadata.
+ * Do not persist tokens. Frontend role values control visibility only;
+ * API authorization remains the security boundary.
  */
 export function normalizeSession(value: unknown): Session | null {
   if (!value || typeof value !== "object") return null;
@@ -15,13 +15,13 @@ export function normalizeSession(value: unknown): Session | null {
   if (!rawUser || typeof rawUser !== "object") return null;
 
   const user = rawUser as Record<string, unknown>;
-  const role = user.platformRole;
+  const platformRole = user.platformRole;
   if (
     typeof user.id !== "number" ||
     typeof user.name !== "string" ||
     typeof user.email !== "string" ||
-    typeof role !== "string" ||
-    !PLATFORM_ROLES.includes(role as PlatformRole)
+    typeof platformRole !== "string" ||
+    !PLATFORM_ROLES.includes(platformRole as PlatformRole)
   ) {
     return null;
   }
@@ -31,10 +31,9 @@ export function normalizeSession(value: unknown): Session | null {
       id: user.id,
       name: user.name,
       email: user.email,
-      platformRole: role as PlatformRole,
-      ...(typeof user.tenantRole === "string"
-        ? { tenantRole: user.tenantRole }
-        : {}),
+      platformRole: platformRole as PlatformRole,
+      ...(typeof user.role === "string" ? { role: user.role } : {}),
+      ...(typeof user.tenantRole === "string" ? { tenantRole: user.tenantRole } : {}),
     },
   };
 
@@ -82,11 +81,11 @@ export function readStoredSession(): Session | null {
     return null;
   }
 
-  // Rewrite older entries so any previously stored accessToken is removed.
+  // Rewrite older sessions to remove unexpected fields, including access tokens.
   try {
     sessionStorage.setItem("savvy-session", JSON.stringify(safeSession));
   } catch {
-    // Storage may be unavailable; the safe session can still be used in memory.
+    // Continue in memory if browser storage is unavailable.
   }
   return safeSession;
 }
@@ -98,7 +97,7 @@ export function storeSession(value: unknown): Session | null {
   try {
     sessionStorage.setItem("savvy-session", JSON.stringify(safeSession));
   } catch {
-    // The in-memory session can still be used if browser storage is unavailable.
+    // Continue in memory if browser storage is unavailable.
   }
   return safeSession;
 }

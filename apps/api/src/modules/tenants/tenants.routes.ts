@@ -11,6 +11,7 @@ import {
   SubscriptionStatus,
   type Subscription,
   TenantStatus,
+  TenantModule,
 } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
@@ -66,6 +67,31 @@ const normalizedEmailSchema = z
   .max(254)
   .transform((value) => value.toLowerCase());
 
+const WORKSPACE_MODULES = [
+  TenantModule.PLANTS,
+  TenantModule.DRIVERS,
+  TenantModule.CUSTOMERS,
+  TenantModule.VENDORS,
+  TenantModule.DISTRIBUTORS,
+] as const;
+const CONFIGURABLE_ROLES = [
+  MembershipRole.TENANT_ADMIN,
+  MembershipRole.MANAGER,
+  MembershipRole.STAFF,
+] as const;
+const rolePermissionInputSchema = z.object({
+  role: z.enum(["TENANT_ADMIN", "MANAGER", "STAFF"]),
+  module: z.nativeEnum(TenantModule),
+  canView: z.boolean(),
+  canCreate: z.boolean(),
+  canEdit: z.boolean(),
+  canDelete: z.boolean(),
+}).strict().superRefine((permission, ctx) => {
+  if ((permission.canCreate || permission.canEdit || permission.canDelete) && !permission.canView) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["canView"], message: "Create, edit, and delete permissions require view access." });
+  }
+});
+
 const createTenantSchema = z.object({
   name: z.string().trim().min(2).max(120),
   slug: z
@@ -75,9 +101,18 @@ const createTenantSchema = z.object({
     .min(2)
     .max(80)
     .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
-  contactName: z.preprocess(emptyStringToUndefined, z.string().trim().min(2).max(120).optional()),
-  contactEmail: z.preprocess(emptyStringToUndefined,normalizedEmailSchema.optional()),
-  contactPhone: z.preprocess(emptyStringToUndefined,contactPhoneSchema.optional()),
+  contactName: z.preprocess(
+    emptyStringToUndefined,
+    z.string().trim().min(2).max(120).optional(),
+  ),
+  contactEmail: z.preprocess(
+    emptyStringToUndefined,
+    normalizedEmailSchema.optional(),
+  ),
+  contactPhone: z.preprocess(
+    emptyStringToUndefined,
+    contactPhoneSchema.optional(),
+  ),
   planCode: z.enum(["STARTER", "GROWTH", "ENTERPRISE"]).default("STARTER"),
   priceAmount: z.number().finite().min(0).max(100000000).optional(),
   billingCycle: z.nativeEnum(BillingCycle).default(BillingCycle.MONTHLY),
@@ -85,7 +120,45 @@ const createTenantSchema = z.object({
   ownerEmail: normalizedEmailSchema,
   ownerPassword: z.string().min(12).max(128),
   trialDays: z.number().int().min(0).max(90).default(14),
+  enabledModules: z.array(z.nativeEnum(TenantModule)).min(1).max(WORKSPACE_MODULES.length).default([...WORKSPACE_MODULES]),
+  rolePermissions: z.array(rolePermissionInputSchema).max(CONFIGURABLE_ROLES.length * WORKSPACE_MODULES.length).default([]),
+}).superRefine((input, ctx) => {
+  const enabled = new Set(input.enabledModules);
+  if (enabled.size !== input.enabledModules.length) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["enabledModules"], message: "A module can only be selected once." });
+  }
+  const seen = new Set<string>();
+  for (const permission of input.rolePermissions) {
+    const key = `${permission.role}:${permission.module}`;
+    if (seen.has(key)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["rolePermissions"], message: `Duplicate permission settings for ${permission.role} / ${permission.module}.` });
+    }
+    seen.add(key);
+    if (!enabled.has(permission.module)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["rolePermissions"], message: `Permissions were supplied for disabled module ${permission.module}.` });
+    }
+  }
+  if (input.rolePermissions.length > 0) {
+    for (const module of input.enabledModules) {
+      for (const role of CONFIGURABLE_ROLES) {
+        if (!seen.has(`${role}:${module}`)) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["rolePermissions"], message: `Missing permission settings for ${role} / ${module}.` });
+        }
+      }
+    }
+  }
 });
+
+function buildDefaultRolePermissions(modules: TenantModule[]) {
+  return modules.flatMap((module) => CONFIGURABLE_ROLES.map((role) => ({
+    role,
+    module,
+    canView: true,
+    canCreate: role !== MembershipRole.STAFF,
+    canEdit: role !== MembershipRole.STAFF,
+    canDelete: role === MembershipRole.TENANT_ADMIN,
+  })));
+}
 
 function getPrismaErrorCode(error: unknown): string | undefined {
   if (typeof error === "object" && error !== null && "code" in error) {
@@ -344,6 +417,32 @@ tenantsRouter.post("/", async (req, res, next) => {
           trialEndsAt,
         },
       });
+
+      // Store an explicit enabled/disabled entitlement for every supported module.
+      await tx.tenantModuleAccess.createMany({
+        data: WORKSPACE_MODULES.map((module) => ({
+          tenantId: created.id,
+          module,
+          isEnabled: input.enabledModules.includes(module),
+        })),
+      });
+
+      // Older API clients can omit the matrix; new Super Admin UI submits it explicitly.
+      const rolePermissions = input.rolePermissions.length > 0
+        ? input.rolePermissions
+        : buildDefaultRolePermissions(input.enabledModules);
+      await tx.tenantRolePermission.createMany({
+        data: rolePermissions.map((permission) => ({
+          tenantId: created.id,
+          role: permission.role as MembershipRole,
+          module: permission.module,
+          canView: permission.canView,
+          canCreate: permission.canCreate,
+          canEdit: permission.canEdit,
+          canDelete: permission.canDelete,
+        })),
+      });
+
       await tx.auditLog.create({
         data: {
           actorUserId: req.auth!.userId,
@@ -357,6 +456,8 @@ tenantsRouter.post("/", async (req, res, next) => {
             slug: created.slug,
             planCode: input.planCode,
             trialDays: input.trialDays,
+            enabledModules: input.enabledModules,
+            rolePermissionCount: input.rolePermissions.length || buildDefaultRolePermissions(input.enabledModules).length,
           },
         },
       });
@@ -373,6 +474,8 @@ tenantsRouter.post("/", async (req, res, next) => {
         billingCycle: tenant.subscription.billingCycle,
         ownerEmail: input.ownerEmail,
         trialEndsAt: tenant.subscription.trialEndsAt,
+        enabledModules: input.enabledModules,
+        rolePermissionCount: input.rolePermissions.length || buildDefaultRolePermissions(input.enabledModules).length,
       },
     });
   } catch (error: unknown) {
@@ -973,6 +1076,8 @@ const permanentDeleteCountSelection = {
 
 const tenantDetailsInclude = {
   subscription: true,
+  moduleAccess: { orderBy: { module: "asc" as const } },
+  rolePermissions: { orderBy: [{ role: "asc" as const }, { module: "asc" as const }] },
   memberships: {
     orderBy: { createdAt: "asc" },
     include: { user: { select: { id: true, name: true, email: true } } },
@@ -1037,6 +1142,19 @@ tenantsRouter.get("/:tenantId", async (req, res, next) => {
         contactName: tenant.contactName,
         contactEmail: tenant.contactEmail,
         contactPhone: tenant.contactPhone,
+        deletedAt: tenant.deletedAt,
+        moduleAccess: tenant.moduleAccess.map((access) => ({
+          module: access.module,
+          isEnabled: access.isEnabled,
+        })),
+        rolePermissions: tenant.rolePermissions.map((permission) => ({
+          role: permission.role,
+          module: permission.module,
+          canView: permission.canView,
+          canCreate: permission.canCreate,
+          canEdit: permission.canEdit,
+          canDelete: permission.canDelete,
+        })),
         memberships: tenant.memberships.map((membership) => ({
           id: membership.id,
           userId: membership.userId,

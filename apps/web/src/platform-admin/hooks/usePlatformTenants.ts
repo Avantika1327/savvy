@@ -215,6 +215,10 @@ export function usePlatformTenants() {
         contactEmail: form.contactEmail || undefined,
         contactPhone: form.contactPhone || undefined,
         priceAmount: form.priceAmount === "" ? undefined : Number(form.priceAmount),
+        enabledModules: form.enabledModules,
+        rolePermissions: form.rolePermissions.filter((permission) =>
+          form.enabledModules.includes(permission.module),
+        ),
       };
       await platformRequest<ApiData<Tenant>>("/platform/tenants", {
         method: "POST",

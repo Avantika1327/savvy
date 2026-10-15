@@ -10,6 +10,19 @@ export type TenantStatus =
 
 export type PlatformView = "overview" | "tenants" | "payments";
 
+export type TenantModule = "PLANTS" | "DRIVERS" | "CUSTOMERS" | "VENDORS" | "DISTRIBUTORS";
+export type ConfigurableMembershipRole = "TENANT_ADMIN" | "MANAGER" | "STAFF";
+export type PermissionAction = "canView" | "canCreate" | "canEdit" | "canDelete";
+
+export type RolePermissionSetting = {
+  role: ConfigurableMembershipRole;
+  module: TenantModule;
+  canView: boolean;
+  canCreate: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+};
+
 export type Tenant = {
   id: string;
   name: string;
@@ -63,6 +76,8 @@ export type TenantForm = {
   ownerEmail: string;
   ownerPassword: string;
   trialDays: number;
+  enabledModules: TenantModule[];
+  rolePermissions: RolePermissionSetting[];
 };
 
 export type PlatformMetric = {

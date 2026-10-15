@@ -46,8 +46,8 @@ function getView(path: string): PlatformView | null {
   if (normalized === "/platform-admin") return "overview";
   if (normalized === "/platform-admin/tenants" || normalized.startsWith("/platform-admin/tenants/")) return "tenants";
   if (normalized === "/platform-admin/payments") return "payments";
-  return null;
-}
+      return null;
+  }
 
 export default function PlatformTenants({ session, onLogout }: Props) {
   const location = useLocation();
@@ -86,20 +86,20 @@ export default function PlatformTenants({ session, onLogout }: Props) {
         />
         <section className="platform-content">
           {!isNestedTenantPage && (
-            <PlatformPageHeading
-              view={view}
-              viewTitles={VIEW_TITLES}
-              viewDescriptions={VIEW_DESCRIPTIONS}
-              loading={state.loading}
-              tenantCount={state.tenants.length}
-              onCreate={() => {
-                state.setForm(emptyForm);
-                state.setShowCreate(true);
-                state.setError("");
-              }}
-              onOpenTenants={() => setView("tenants")}
-              onRefresh={() => void state.load()}
-            />
+          <PlatformPageHeading
+            view={view}
+            viewTitles={VIEW_TITLES}
+            viewDescriptions={VIEW_DESCRIPTIONS}
+            loading={state.loading}
+            tenantCount={state.tenants.length}
+            onCreate={() => {
+              state.setForm(emptyForm);
+              state.setShowCreate(true);
+              state.setError("");
+            }}
+            onOpenTenants={() => setView("tenants")}
+            onRefresh={() => void state.load()}
+          />
           )}
           <PlatformAlerts
             error={state.error}

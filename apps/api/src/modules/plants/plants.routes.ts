@@ -1,6 +1,7 @@
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import { MembershipRole, Prisma } from '@prisma/client';
 import { z } from 'zod';
+import sanitizeHtml from 'sanitize-html';
 import { authenticate, requireActiveTenant } from '../../middleware/auth.middleware.js';
 import { withTenantTransaction } from '../../lib/tenant-transaction.js';
 
@@ -8,23 +9,41 @@ export const plantsRouter = Router();
 plantsRouter.use(authenticate('web'), requireActiveTenant);
 
 const optionalText = (max: number) => z.string().trim().max(max).nullable().optional();
+const optionalEmail = z.string().trim().email().max(254).transform((value) => value.toLowerCase()).nullable().optional();
+const coverageTypeSchema = z.enum(['LOCAL', 'PAN_INDIA']);
+
+const sanitizePlantDetails = (value: string | null | undefined): string | null | undefined => {
+  if (value === undefined || value === null || value.trim() === '') return value ?? null;
+  return sanitizeHtml(value, {
+    allowedTags: ['p', 'div', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'ul', 'ol', 'li', 'blockquote', 'h2', 'h3', 'pre', 'code', 'a'],
+    allowedAttributes: { a: ['href', 'target', 'rel'] },
+    allowedSchemes: ['http', 'https', 'mailto'],
+    transformTags: {
+      a: sanitizeHtml.simpleTransform('a', { rel: 'noopener noreferrer', target: '_blank' }, true),
+    },
+  });
+};
 
 const createSchema = z.object({
   name: z.string().trim().min(2).max(120),
   address: optionalText(250),
   manager: optionalText(120),
+  managerEmail: optionalEmail,
+  coverageType: coverageTypeSchema.default('LOCAL'),
   location: optionalText(120),
-  pincode: optionalText(20),
-  details: optionalText(2000),
+  pincode: z.string().trim().regex(/^[1-9][0-9]{5}$/).nullable().optional(),
+  details: optionalText(15000),
 }).strict();
 
 const updateSchema = z.object({
   name: z.string().trim().min(2).max(120).optional(),
   address: optionalText(250),
   manager: optionalText(120),
+  managerEmail: optionalEmail,
+  coverageType: coverageTypeSchema.optional(),
   location: optionalText(120),
-  pincode: optionalText(20),
-  details: optionalText(2000),
+  pincode: z.string().trim().regex(/^[1-9][0-9]{5}$/).nullable().optional(),
+  details: optionalText(15000),
 }).strict().refine(
   (input) => Object.values(input).some((value) => value !== undefined),
   { message: 'Provide at least one field to update.' },
@@ -38,6 +57,8 @@ const plantSelect = {
   name: true,
   address: true,
   manager: true,
+  managerEmail: true,
+  coverageType: true,
   location: true,
   pincode: true,
   details: true,
@@ -150,6 +171,8 @@ plantsRouter.post('/', requirePlantManager, async (req, res, next) => {
         data: {
           ...input,
           name: input.name.trim(),
+          managerEmail: input.managerEmail ?? null,
+          details: sanitizePlantDetails(input.details),
           normalizedName,
           tenantId,
           isActive: true,
@@ -208,9 +231,11 @@ plantsRouter.patch('/:plantId', requirePlantManager, async (req, res, next) => {
       }
       if (input.address !== undefined) data.address = input.address;
       if (input.manager !== undefined) data.manager = input.manager;
+      if (input.managerEmail !== undefined) data.managerEmail = input.managerEmail;
+      if (input.coverageType !== undefined) data.coverageType = input.coverageType;
       if (input.location !== undefined) data.location = input.location;
       if (input.pincode !== undefined) data.pincode = input.pincode;
-      if (input.details !== undefined) data.details = input.details;
+      if (input.details !== undefined) data.details = sanitizePlantDetails(input.details);
 
       if (input.name !== undefined) {
         const duplicate = await tx.plant.findFirst({

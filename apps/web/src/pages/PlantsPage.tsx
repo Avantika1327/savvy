@@ -40,7 +40,7 @@ export default function PlantsPage({ canManagePlants }: Props) {
   const filteredPlants = useMemo(() => {
     const query = search.trim().toLowerCase();
     return plants.filter((plant) => {
-      const matchesSearch = !query || [plant.name, plant.manager, plant.location, plant.address, plant.pincode, plant.details]
+      const matchesSearch = !query || [plant.name, plant.manager, plant.managerEmail, plant.location, plant.address, plant.pincode, plant.details]
         .some((value) => (value ?? "").toLowerCase().includes(query));
       const matchesStatus = statusFilter === "ALL" || (statusFilter === "ACTIVE" ? plant.isActive : !plant.isActive);
       return matchesSearch && matchesStatus;
