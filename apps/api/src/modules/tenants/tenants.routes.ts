@@ -1,5 +1,6 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
+import { parsePhoneNumberFromString } from "libphonenumber-js";
 import {
   BillingCycle,
   MembershipRole,
@@ -8,6 +9,7 @@ import {
   PlatformRole,
   Prisma,
   SubscriptionStatus,
+  type Subscription,
   TenantStatus,
 } from "@prisma/client";
 import { z } from "zod";
@@ -21,6 +23,49 @@ import { withPlatformTransaction } from "../../lib/platform-transaction.js";
 
 export const tenantsRouter = Router();
 tenantsRouter.use(authenticate("platform"), requirePlatformSuperAdmin);
+const emptyStringToUndefined = (value: unknown) =>
+  typeof value === "string" && value.trim() === "" ? undefined : value;
+const emptyStringToNull = (value: unknown) =>
+  typeof value === "string" && value.trim() === "" ? null : value;
+
+/**
+ * Accepts national Indian numbers or international numbers with a country code.
+ * libphonenumber-js validates the actual numbering plan; storing an E.164 key
+ * separately makes duplicate detection consistent across spaces/dashes.
+ */
+const contactPhoneSchema = z
+  .string()
+  .trim()
+  .min(7)
+  .max(30)
+  .refine((value) => /^[+()\-\s.\d]+$/.test(value), {
+    message: "Phone number contains unsupported characters.",
+  })
+  .transform((value, ctx) => {
+    const parsed = parsePhoneNumberFromString(value, "IN");
+    if (!parsed || !parsed.isValid()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Enter a valid phone number; include the country code for non-Indian numbers.",
+      });
+      return z.NEVER;
+    }
+    return parsed.formatInternational();
+  });
+
+function normalizePhoneToE164(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const parsed = parsePhoneNumberFromString(value, "IN");
+  return parsed?.isValid() ? parsed.number : null;
+}
+
+const normalizedEmailSchema = z
+  .string()
+  .trim()
+  .email()
+  .max(254)
+  .transform((value) => value.toLowerCase());
+
 const createTenantSchema = z.object({
   name: z.string().trim().min(2).max(120),
   slug: z
@@ -30,22 +75,55 @@ const createTenantSchema = z.object({
     .min(2)
     .max(80)
     .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
-  contactName: z.string().trim().min(2).max(120).optional(),
-  contactEmail: z.string().trim().email().max(254).optional(),
-  contactPhone: z.string().trim().min(7).max(30).optional(),
+  contactName: z.preprocess(emptyStringToUndefined, z.string().trim().min(2).max(120).optional()),
+  contactEmail: z.preprocess(emptyStringToUndefined,normalizedEmailSchema.optional()),
+  contactPhone: z.preprocess(emptyStringToUndefined,contactPhoneSchema.optional()),
   planCode: z.enum(["STARTER", "GROWTH", "ENTERPRISE"]).default("STARTER"),
-  priceAmount: z.number().min(0).max(100000000).optional(),
+  priceAmount: z.number().finite().min(0).max(100000000).optional(),
   billingCycle: z.nativeEnum(BillingCycle).default(BillingCycle.MONTHLY),
   ownerName: z.string().trim().min(2).max(120),
-  ownerEmail: z
-    .string()
-    .trim()
-    .email()
-    .max(254)
-    .transform((v) => v.toLowerCase()),
+  ownerEmail: normalizedEmailSchema,
   ownerPassword: z.string().min(12).max(128),
   trialDays: z.number().int().min(0).max(90).default(14),
 });
+
+function getPrismaErrorCode(error: unknown): string | undefined {
+  if (typeof error === "object" && error !== null && "code" in error) {
+    const code = (error as { code?: unknown }).code;
+    return typeof code === "string" ? code : undefined;
+  }
+  return undefined;
+}
+
+function getPrismaUniqueTarget(error: unknown): string[] {
+  if (typeof error !== "object" || error === null || !("meta" in error)) return [];
+  const target = (error as { meta?: { target?: unknown } }).meta?.target;
+  if (Array.isArray(target)) return target.map(String);
+  return typeof target === "string" ? [target] : [];
+}
+
+function prismaTargetHas(error: unknown, fragment: string): boolean {
+  const expected = fragment.toLowerCase();
+  return getPrismaUniqueTarget(error).some((target) =>
+    target.toLowerCase().includes(expected),
+  );
+}
+
+function getErrorBlockers(
+  error: unknown,
+): Array<{ relation: string; count: number }> | undefined {
+  if (typeof error !== "object" || error === null || !("blockers" in error)) {
+    return undefined;
+  }
+  const blockers = (error as { blockers?: unknown }).blockers;
+  if (!Array.isArray(blockers)) return undefined;
+  return blockers.filter(
+    (item): item is { relation: string; count: number } =>
+      typeof item === "object" && item !== null &&
+      "relation" in item && typeof item.relation === "string" &&
+      "count" in item && typeof item.count === "number",
+  );
+}
 
 function addBillingPeriod(start: Date, cycle: BillingCycle): Date {
   const result = new Date(start);
@@ -63,10 +141,27 @@ function addBillingPeriod(start: Date, cycle: BillingCycle): Date {
   return result;
 }
 
-function serializeTenant(t: any) {
+type TenantForSerialization = {
+  id: string;
+  name: string;
+  slug: string;
+  contactName: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  status: TenantStatus;
+  activatedAt: Date | null;
+  deactivatedAt: Date | null;
+  createdAt: Date;
+  deletedAt: Date | null;
+  subscription?: Subscription | null;
+  memberships?: Array<{ user: { name: string; email: string } | null }>;
+  _count?: { memberships: number };
+};
+
+function serializeTenant(t: TenantForSerialization) {
   const effectiveStatus = effectiveTenantStatus({
     status: t.status,
-    subscription: t.subscription,
+    subscription: t.subscription ?? null,
   });
   return {
     id: t.id,
@@ -87,6 +182,7 @@ function serializeTenant(t: any) {
     createdAt: t.createdAt,
     activatedAt: t.activatedAt,
     deactivatedAt: t.deactivatedAt,
+    deletedAt: t.deletedAt,
     trialEndsAt: t.subscription?.trialEndsAt ?? null,
     currentPeriodStartsAt: t.subscription?.currentPeriodStartsAt ?? null,
     currentPeriodEndsAt: t.subscription?.currentPeriodEndsAt ?? null,
@@ -97,7 +193,8 @@ const includeTenant = {
   _count: { select: { memberships: true } },
   subscription: true,
   memberships: {
-    where: { role: MembershipRole.TENANT_OWNER },
+    where: { role: MembershipRole.TENANT_OWNER, isActive: true },
+    orderBy: { createdAt: "asc" },
     take: 1,
     include: { user: { select: { name: true, email: true } } },
   },
@@ -108,14 +205,16 @@ tenantsRouter.get("/", async (_req, res, next) => {
     const [tenants, total, active, suspended, paymentPending, expired] =
       await Promise.all([
         prisma.tenant.findMany({
+          where: { deletedAt: null },
           orderBy: { createdAt: "desc" },
           include: includeTenant,
         }),
-        prisma.tenant.count(),
-        prisma.tenant.count({ where: { status: TenantStatus.ACTIVE } }),
-        prisma.tenant.count({ where: { status: TenantStatus.SUSPENDED } }),
+        prisma.tenant.count({ where: { deletedAt: null } }),
+        prisma.tenant.count({ where: { deletedAt: null, status: TenantStatus.ACTIVE } }),
+        prisma.tenant.count({ where: { deletedAt: null, status: TenantStatus.SUSPENDED } }),
         prisma.tenant.count({
           where: {
+            deletedAt: null,
             OR: [
               { status: TenantStatus.PAYMENT_PENDING },
               {
@@ -135,6 +234,7 @@ tenantsRouter.get("/", async (_req, res, next) => {
         }),
         prisma.tenant.count({
           where: {
+            deletedAt: null,
             OR: [
               { status: TenantStatus.EXPIRED },
               { subscription: { is: { status: SubscriptionStatus.EXPIRED } } },
@@ -162,17 +262,36 @@ tenantsRouter.post("/", async (req, res, next) => {
     });
   const input = parsed.data;
   try {
-    const duplicate = await prisma.user.findUnique({
-      where: { email: input.ownerEmail },
-      select: { id: true },
-    });
-    if (duplicate)
+    const normalizedPhone = normalizePhoneToE164(input.contactPhone);
+    const [existingOwner, existingSlug, existingPhone] = await Promise.all([
+      prisma.user.findFirst({
+        where: { email: { equals: input.ownerEmail, mode: "insensitive" } },
+        select: { id: true },
+      }),
+      prisma.tenant.findFirst({
+        where: { slug: { equals: input.slug, mode: "insensitive" } },
+        select: { id: true },
+      }),
+      normalizedPhone
+        ? prisma.tenant.findUnique({ where: { contactPhoneNormalized: normalizedPhone }, select: { id: true } })
+        : Promise.resolve(null),
+    ]);
+
+    if (existingOwner) {
       return res.status(409).json({
-        error: {
-          code: "EMAIL_IN_USE",
-          message: "This email already belongs to an account.",
-        },
+        error: { code: "EMAIL_IN_USE", message: "This email already belongs to an account." },
       });
+    }
+    if (existingSlug) {
+      return res.status(409).json({
+        error: { code: "TENANT_SLUG_IN_USE", message: "That workspace slug is already in use." },
+      });
+    }
+    if (existingPhone) {
+      return res.status(409).json({
+        error: { code: "CONTACT_PHONE_IN_USE", message: "That contact phone number is already assigned to another workspace." },
+      });
+    }
     const passwordHash = await bcrypt.hash(input.ownerPassword, 12);
     const now = new Date();
     // Trial access is explicit and expires. Zero trial days creates a payment-pending tenant.
@@ -188,6 +307,7 @@ tenantsRouter.post("/", async (req, res, next) => {
           contactName: input.contactName,
           contactEmail: input.contactEmail,
           contactPhone: input.contactPhone,
+          contactPhoneNormalized: normalizedPhone,
           status: isTrial ? TenantStatus.TRIAL : TenantStatus.PAYMENT_PENDING,
         },
       });
@@ -255,14 +375,30 @@ tenantsRouter.post("/", async (req, res, next) => {
         trialEndsAt: tenant.subscription.trialEndsAt,
       },
     });
-  } catch (error: any) {
-    if (error?.code === "P2002")
+  } catch (error: unknown) {
+    if (getPrismaErrorCode(error) === "P2002") {
+      if (
+        prismaTargetHas(error, "contact_phone_normalized") ||
+        prismaTargetHas(error, "contactphonenormalized")
+      ) {
+        return res.status(409).json({
+          error: { code: "CONTACT_PHONE_IN_USE", message: "That contact phone number is already assigned to another workspace." },
+        });
+      }
+      if (prismaTargetHas(error, "slug")) {
+        return res.status(409).json({
+          error: { code: "TENANT_SLUG_IN_USE", message: "That workspace slug is already in use." },
+        });
+      }
+      if (prismaTargetHas(error, "email")) {
+        return res.status(409).json({
+          error: { code: "EMAIL_IN_USE", message: "This email already belongs to an account." },
+        });
+      }
       return res.status(409).json({
-        error: {
-          code: "TENANT_CONFLICT",
-          message: "Tenant slug or owner email already exists.",
-        },
+        error: { code: "DUPLICATE_RECORD", message: "A unique field already exists." },
       });
+    }
     next(error);
   }
 });
@@ -289,6 +425,11 @@ tenantsRouter.patch("/:tenantId/status", async (req, res, next) => {
       return res.status(404).json({
         error: { code: "TENANT_NOT_FOUND", message: "Tenant not found." },
       });
+    if (current.deletedAt) {
+      return res.status(409).json({
+        error: { code: "TENANT_IN_TRASH", message: "Restore the tenant before changing its status." },
+      });
+    }
     const requested = parsed.data.status as TenantStatus;
     const candidateStatus =
       requested === TenantStatus.ACTIVE &&
@@ -355,7 +496,7 @@ tenantsRouter.patch("/:tenantId/status", async (req, res, next) => {
     res.json({
       data: serializeTenant({ ...tenant, _count: { memberships: 0 } }),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     next(error);
   }
 });
@@ -363,8 +504,8 @@ tenantsRouter.patch("/:tenantId/status", async (req, res, next) => {
 const subscriptionSchema = z.object({
   planCode: z.enum(["STARTER", "GROWTH", "ENTERPRISE"]),
   billingCycle: z.nativeEnum(BillingCycle),
-  priceAmount: z.number().min(0).max(100000000),
-  currency: z.string().trim().length(3).default("INR"),
+  priceAmount: z.number().finite().min(0).max(100000000),
+  currency: z.string().trim().regex(/^[A-Za-z]{3}$/).default("INR"),
 });
 tenantsRouter.patch("/:tenantId/subscription", async (req, res, next) => {
   const tenantId = req.params.tenantId;
@@ -378,6 +519,20 @@ tenantsRouter.patch("/:tenantId/subscription", async (req, res, next) => {
       },
     });
   try {
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { id: true, deletedAt: true },
+    });
+    if (!tenant) {
+      return res.status(404).json({
+        error: { code: "TENANT_NOT_FOUND", message: "Tenant not found." },
+      });
+    }
+    if (tenant.deletedAt) {
+      return res.status(409).json({
+        error: { code: "TENANT_IN_TRASH", message: "Restore the tenant before changing its subscription." },
+      });
+    }
     const existing = await prisma.subscription.findUnique({
       where: { tenantId },
     });
@@ -435,11 +590,11 @@ tenantsRouter.patch("/:tenantId/subscription", async (req, res, next) => {
 });
 
 const paymentSchema = z.object({
-  amount: z.number().positive().max(100000000),
-  currency: z.string().trim().length(3).default("INR"),
+  amount: z.number().finite().positive().max(100000000),
+  currency: z.string().trim().regex(/^[A-Za-z]{3}$/).default("INR"),
   method: z.nativeEnum(PaymentMethod).default(PaymentMethod.MANUAL),
-  reference: z.string().trim().max(200).optional(),
-  notes: z.string().trim().max(2000).optional(),
+  reference: z.preprocess(emptyStringToUndefined, z.string().trim().min(1).max(200).optional()),
+  notes: z.preprocess(emptyStringToUndefined, z.string().trim().max(2000).optional()),
 });
 tenantsRouter.get("/:tenantId/payments", async (req, res, next) => {
   try {
@@ -491,6 +646,20 @@ tenantsRouter.post("/:tenantId/payments", async (req, res, next) => {
       },
     });
   try {
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { id: true, deletedAt: true },
+    });
+    if (!tenant) {
+      return res.status(404).json({
+        error: { code: "TENANT_NOT_FOUND", message: "Tenant not found." },
+      });
+    }
+    if (tenant.deletedAt) {
+      return res.status(409).json({
+        error: { code: "TENANT_IN_TRASH", message: "Restore the tenant before recording payments." },
+      });
+    }
     const sub = await prisma.subscription.findUnique({ where: { tenantId } });
     if (!sub)
       return res.status(404).json({
@@ -500,6 +669,21 @@ tenantsRouter.post("/:tenantId/payments", async (req, res, next) => {
         },
       });
     const p = parsed.data;
+    if (p.reference) {
+      const duplicateReference = await prisma.payment.findFirst({
+        where: { tenantId, reference: p.reference },
+        select: { id: true },
+      });
+      if (duplicateReference) {
+        return res.status(409).json({
+          error: {
+            code: "PAYMENT_REFERENCE_IN_USE",
+            message: "This payment reference has already been recorded for the workspace.",
+          },
+        });
+      }
+    }
+
     const payment = await withPlatformTransaction(async (tx) => {
       const created = await tx.payment.create({
         data: {
@@ -544,7 +728,15 @@ tenantsRouter.post("/:tenantId/payments", async (req, res, next) => {
         createdAt: payment.createdAt,
       },
     });
-  } catch (error) {
+  } catch (error: unknown) {
+    if (getPrismaErrorCode(error) === "P2002" && prismaTargetHas(error, "reference")) {
+      return res.status(409).json({
+        error: {
+          code: "PAYMENT_REFERENCE_IN_USE",
+          message: "This payment reference has already been recorded for the workspace.",
+        },
+      });
+    }
     next(error);
   }
 });
@@ -565,6 +757,13 @@ tenantsRouter.patch(
       });
     try {
       const updated = await withPlatformTransaction(async (tx) => {
+        const tenant = await tx.tenant.findUnique({
+          where: { id: tenantId },
+          select: { id: true, deletedAt: true },
+        });
+        if (!tenant) throw Object.assign(new Error("TENANT_NOT_FOUND"), { code: "TENANT_NOT_FOUND" });
+        if (tenant.deletedAt) throw Object.assign(new Error("TENANT_IN_TRASH"), { code: "TENANT_IN_TRASH" });
+
         const payment = await tx.payment.findFirst({
           where: { id: paymentId, tenantId },
           include: { subscription: true },
@@ -653,23 +852,19 @@ tenantsRouter.patch(
           currentPeriodEndsAt: updated.currentPeriodEndsAt,
         },
       });
-    } catch (error: any) {
-      if (
-        [
-          "PAYMENT_NOT_FOUND",
-          "PAYMENT_NOT_PENDING",
-          "PAYMENT_AMOUNT_INSUFFICIENT",
-        ].includes(error?.code)
-      ) {
-        const messages: Record<string, string> = {
-          PAYMENT_NOT_FOUND: "Payment not found for this tenant.",
-          PAYMENT_NOT_PENDING: "Only pending payments can be confirmed.",
-          PAYMENT_AMOUNT_INSUFFICIENT:
-            "Payment amount is less than the assigned subscription price.",
-        };
-        return res
-          .status(error.code === "PAYMENT_NOT_FOUND" ? 404 : 409)
-          .json({ error: { code: error.code, message: messages[error.code] } });
+    } catch (error: unknown) {
+      const code = getPrismaErrorCode(error);
+      const messages: Record<string, string> = {
+        PAYMENT_NOT_FOUND: "Payment not found for this tenant.",
+        PAYMENT_NOT_PENDING: "Only pending payments can be confirmed.",
+        PAYMENT_AMOUNT_INSUFFICIENT:
+          "Payment amount is less than the assigned subscription price.",
+        TENANT_NOT_FOUND: "Tenant not found.",
+        TENANT_IN_TRASH: "Restore the tenant before confirming payment or activating access.",
+      };
+      if (code && Object.prototype.hasOwnProperty.call(messages, code)) {
+        const statusCode = code === "PAYMENT_NOT_FOUND" || code === "TENANT_NOT_FOUND" ? 404 : 409;
+        return res.status(statusCode).json({ error: { code, message: messages[code] } });
       }
       next(error);
     }
@@ -699,6 +894,449 @@ tenantsRouter.get("/:tenantId/audit-logs", async (req, res, next) => {
       })),
     });
   } catch (error) {
+    next(error);
+  }
+});
+
+const permanentDeleteSchema = z.object({
+  confirmSlug: z.string().trim().toLowerCase().min(2).max(80),
+});
+
+const updateTenantSchema = z
+  .object({
+    name: z.string().trim().min(2).max(120).optional(),
+    slug: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .min(2)
+      .max(80)
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+      .optional(),
+    contactName: z.preprocess(
+      emptyStringToNull,
+      z.string().trim().min(2).max(120).nullable().optional(),
+    ),
+    contactEmail: z.preprocess(
+      emptyStringToNull,
+      normalizedEmailSchema.nullable().optional(),
+    ),
+    contactPhone: z.preprocess(
+      emptyStringToNull,
+      contactPhoneSchema.nullable().optional(),
+    ),
+  })
+  .refine((input) => Object.values(input).some((value) => value !== undefined), {
+    message: "Provide at least one field to update.",
+  });
+
+const permanentDeleteCountSelection = {
+  payments: true,
+  plants: true,
+  products: true,
+  customers: true,
+  drivers: true,
+  routes: true,
+  contracts: true,
+  orders: true,
+  shippingAddresses: true,
+  shippingContacts: true,
+  shippingContactMultiples: true,
+  machineDispensaries: true,
+  maintenances: true,
+  vendors: true,
+  reasons: true,
+  rawMaterials: true,
+  rawMaterialVariants: true,
+  rawStockTransactions: true,
+  rawDistributions: true,
+  rawStockLogs: true,
+  rawStockForPlants: true,
+  plantProductions: true,
+  plantProductionDetails: true,
+  jarTransportations: true,
+  jarMaintenances: true,
+  jarTransportLogs: true,
+  jarTransportDriverLogs: true,
+  digitalCards: true,
+  labReports: true,
+  distributors: true,
+  distributorPlantOrders: true,
+  distributorPlantProductions: true,
+  distributorPlantDispatches: true,
+  distributorPlantOrderAcceptances: true,
+  distributorPlantInventories: true,
+  distributorPlantAllocations: true,
+  orderGenerationFailures: true,
+  scrabJars: true,
+} as const;
+
+const tenantDetailsInclude = {
+  subscription: true,
+  memberships: {
+    orderBy: { createdAt: "asc" },
+    include: { user: { select: { id: true, name: true, email: true } } },
+  },
+  _count: {
+    select: {
+      memberships: true,
+      plants: true,
+      products: true,
+      customers: true,
+      orders: true,
+      drivers: true,
+      vendors: true,
+      distributors: true,
+      payments: true,
+    },
+  },
+} as const;
+
+/** GET /api/web/v1/platform/tenants/trash
+ * IMPORTANT: register this static route before GET /:tenantId.
+ */
+tenantsRouter.get("/trash", async (_req, res, next) => {
+  try {
+    const tenants = await prisma.tenant.findMany({
+      where: { deletedAt: { not: null } },
+      orderBy: { deletedAt: "desc" },
+      include: includeTenant,
+    });
+
+    res.json({ data: tenants.map(serializeTenant), meta: { total: tenants.length } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+tenantsRouter.get("/:tenantId", async (req, res, next) => {
+  try {
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: req.params.tenantId },
+      include: tenantDetailsInclude,
+    });
+
+    if (!tenant) {
+      return res.status(404).json({
+        error: { code: "TENANT_NOT_FOUND", message: "Tenant not found." },
+      });
+    }
+
+    const owner = tenant.memberships.find(
+      (membership) =>
+        membership.role === MembershipRole.TENANT_OWNER && membership.isActive,
+    );
+    const base = serializeTenant({
+      ...tenant,
+      memberships: owner ? [owner] : [],
+    });
+
+    return res.json({
+      data: {
+        ...base,
+        contactName: tenant.contactName,
+        contactEmail: tenant.contactEmail,
+        contactPhone: tenant.contactPhone,
+        memberships: tenant.memberships.map((membership) => ({
+          id: membership.id,
+          userId: membership.userId,
+          role: membership.role,
+          isActive: membership.isActive,
+          createdAt: membership.createdAt,
+          user: membership.user,
+        })),
+        subscription: tenant.subscription
+          ? {
+              id: tenant.subscription.id,
+              planCode: tenant.subscription.planCode,
+              status: tenant.subscription.status,
+              billingCycle: tenant.subscription.billingCycle,
+              priceAmount: tenant.subscription.priceAmount?.toString() ?? null,
+              currency: tenant.subscription.currency,
+              startsAt: tenant.subscription.startsAt,
+              trialEndsAt: tenant.subscription.trialEndsAt,
+              currentPeriodStartsAt: tenant.subscription.currentPeriodStartsAt,
+              currentPeriodEndsAt: tenant.subscription.currentPeriodEndsAt,
+              canceledAt: tenant.subscription.canceledAt,
+            }
+          : null,
+        counts: tenant._count,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+tenantsRouter.patch("/:tenantId", async (req, res, next) => {
+  const parsed = updateTenantSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: {
+        code: "VALIDATION_ERROR",
+        message: parsed.error.issues[0]?.message ?? "Invalid tenant details.",
+      },
+    });
+  }
+
+  try {
+    const current = await prisma.tenant.findUnique({
+      where: { id: req.params.tenantId },
+      select: { id: true, deletedAt: true },
+    });
+
+    if (!current) {
+      return res.status(404).json({
+        error: { code: "TENANT_NOT_FOUND", message: "Tenant not found." },
+      });
+    }
+    if (current.deletedAt) {
+      return res.status(409).json({
+        error: {
+          code: "TENANT_IN_TRASH",
+          message: "Restore the tenant before editing it.",
+        },
+      });
+    }
+
+    const phoneWasProvided = Object.prototype.hasOwnProperty.call(req.body, "contactPhone");
+    const normalizedPhone = phoneWasProvided
+      ? normalizePhoneToE164(parsed.data.contactPhone)
+      : undefined;
+
+    if (phoneWasProvided && normalizedPhone) {
+      const duplicatePhone = await prisma.tenant.findFirst({
+        where: {
+          contactPhoneNormalized: normalizedPhone,
+          id: { not: req.params.tenantId },
+        },
+        select: { id: true },
+      });
+      if (duplicatePhone) {
+        return res.status(409).json({
+          error: { code: "CONTACT_PHONE_IN_USE", message: "That contact phone number is already assigned to another workspace." },
+        });
+      }
+    }
+
+    const updateData = {
+      ...parsed.data,
+      ...(phoneWasProvided ? { contactPhoneNormalized: normalizedPhone } : {}),
+    };
+
+    const updated = await withPlatformTransaction(async (tx) => {
+      const tenant = await tx.tenant.update({
+        where: { id: req.params.tenantId },
+        data: updateData,
+        include: includeTenant,
+      });
+      await tx.auditLog.create({
+        data: {
+          actorUserId: req.auth!.userId,
+          tenantId: tenant.id,
+          action: "TENANT_UPDATED",
+          entityType: "Tenant",
+          entityId: tenant.id,
+          ipAddress: req.ip,
+          userAgent: req.get("user-agent")?.slice(0, 500),
+          metadata: { updatedFields: Object.keys(parsed.data) },
+        },
+      });
+      return tenant;
+    });
+
+    return res.json({ data: serializeTenant(updated) });
+  } catch (error: unknown) {
+    if (getPrismaErrorCode(error) === "P2002") {
+      if (
+        prismaTargetHas(error, "contact_phone_normalized") ||
+        prismaTargetHas(error, "contactphonenormalized")
+      ) {
+        return res.status(409).json({
+          error: { code: "CONTACT_PHONE_IN_USE", message: "That contact phone number is already assigned to another workspace." },
+        });
+      }
+      if (prismaTargetHas(error, "slug")) {
+        return res.status(409).json({
+          error: { code: "TENANT_SLUG_IN_USE", message: "That workspace slug is already in use." },
+        });
+      }
+      return res.status(409).json({
+        error: { code: "DUPLICATE_RECORD", message: "A unique field already exists." },
+      });
+    }
+    if (getPrismaErrorCode(error) === "P2025") {
+      return res.status(404).json({
+        error: { code: "TENANT_NOT_FOUND", message: "Tenant not found." },
+      });
+    }
+    next(error);
+  }
+});
+
+/** DELETE /api/web/v1/platform/tenants/:tenantId
+ * Soft-delete only: tenant must first be suspended.
+ */
+tenantsRouter.delete("/:tenantId", async (req, res, next) => {
+  try {
+    const result = await withPlatformTransaction(async (tx) => {
+      const tenant = await tx.tenant.findUnique({ where: { id: req.params.tenantId } });
+      if (!tenant) throw Object.assign(new Error("TENANT_NOT_FOUND"), { code: "TENANT_NOT_FOUND" });
+      if (tenant.deletedAt) throw Object.assign(new Error("TENANT_ALREADY_IN_TRASH"), { code: "TENANT_ALREADY_IN_TRASH" });
+      if (tenant.status !== TenantStatus.SUSPENDED) {
+        throw Object.assign(new Error("TENANT_MUST_BE_SUSPENDED"), { code: "TENANT_MUST_BE_SUSPENDED" });
+      }
+
+      const now = new Date();
+      const updated = await tx.tenant.update({
+        where: { id: tenant.id },
+        data: { deletedAt: now },
+        include: { subscription: true },
+      });
+      await tx.auditLog.create({
+        data: {
+          actorUserId: req.auth!.userId,
+          tenantId: tenant.id,
+          action: "TENANT_SOFT_DELETED",
+          entityType: "Tenant",
+          entityId: tenant.id,
+          ipAddress: req.ip,
+          userAgent: req.get("user-agent")?.slice(0, 500),
+          metadata: { slug: tenant.slug, previousStatus: tenant.status },
+        },
+      });
+      return updated;
+    });
+
+    return res.json({ data: { id: result.id, deletedAt: result.deletedAt, status: result.status } });
+  } catch (error: unknown) {
+    const code = getPrismaErrorCode(error);
+    if (code === "TENANT_NOT_FOUND") return res.status(404).json({ error: { code, message: "Tenant not found." } });
+    if (code === "TENANT_ALREADY_IN_TRASH") return res.status(409).json({ error: { code, message: "Tenant is already in Trash." } });
+    if (code === "TENANT_MUST_BE_SUSPENDED") return res.status(409).json({ error: { code, message: "Suspend the tenant before moving it to Trash." } });
+    next(error);
+  }
+});
+
+/** PATCH /api/web/v1/platform/tenants/:tenantId/restore
+ * Restore as SUSPENDED. Restoring never grants access automatically.
+ */
+tenantsRouter.patch("/:tenantId/restore", async (req, res, next) => {
+  try {
+    const result = await withPlatformTransaction(async (tx) => {
+      const tenant = await tx.tenant.findUnique({ where: { id: req.params.tenantId } });
+      if (!tenant) throw Object.assign(new Error("TENANT_NOT_FOUND"), { code: "TENANT_NOT_FOUND" });
+      if (!tenant.deletedAt) throw Object.assign(new Error("TENANT_NOT_IN_TRASH"), { code: "TENANT_NOT_IN_TRASH" });
+
+      const updated = await tx.tenant.update({
+        where: { id: tenant.id },
+        data: {
+          deletedAt: null,
+          status: TenantStatus.SUSPENDED,
+          deactivatedAt: tenant.deactivatedAt ?? new Date(),
+        },
+        include: { subscription: true },
+      });
+      await tx.auditLog.create({
+        data: {
+          actorUserId: req.auth!.userId,
+          tenantId: tenant.id,
+          action: "TENANT_RESTORED_SUSPENDED",
+          entityType: "Tenant",
+          entityId: tenant.id,
+          ipAddress: req.ip,
+          userAgent: req.get("user-agent")?.slice(0, 500),
+          metadata: { slug: tenant.slug },
+        },
+      });
+      return updated;
+    });
+
+    return res.json({ data: { id: result.id, deletedAt: result.deletedAt, status: result.status } });
+  } catch (error: unknown) {
+    const code = getPrismaErrorCode(error);
+    if (code === "TENANT_NOT_FOUND") return res.status(404).json({ error: { code, message: "Tenant not found." } });
+    if (code === "TENANT_NOT_IN_TRASH") return res.status(409).json({ error: { code, message: "Tenant is not in Trash." } });
+    next(error);
+  }
+});
+
+/** DELETE /api/web/v1/platform/tenants/:tenantId/permanent
+ * Permanent deletion is blocked while operational/financial records exist.
+ * Memberships cascade; old audit rows are retained with tenantId=NULL.
+ */
+tenantsRouter.delete("/:tenantId/permanent", async (req, res, next) => {
+  const confirmation = permanentDeleteSchema.safeParse(req.body);
+  if (!confirmation.success) {
+    return res.status(400).json({
+      error: { code: "CONFIRMATION_REQUIRED", message: "Send confirmSlug with the exact workspace slug." },
+    });
+  }
+
+  try {
+    const result = await withPlatformTransaction(async (tx) => {
+      const tenant = await tx.tenant.findUnique({
+        where: { id: req.params.tenantId },
+        include: { _count: { select: permanentDeleteCountSelection } },
+      });
+      if (!tenant) throw Object.assign(new Error("TENANT_NOT_FOUND"), { code: "TENANT_NOT_FOUND" });
+      if (!tenant.deletedAt) throw Object.assign(new Error("TENANT_MUST_BE_IN_TRASH"), { code: "TENANT_MUST_BE_IN_TRASH" });
+      if (tenant.status !== TenantStatus.SUSPENDED) throw Object.assign(new Error("TENANT_MUST_BE_SUSPENDED"), { code: "TENANT_MUST_BE_SUSPENDED" });
+      if (confirmation.data.confirmSlug !== tenant.slug.toLowerCase()) {
+        throw Object.assign(new Error("TENANT_CONFIRMATION_MISMATCH"), { code: "TENANT_CONFIRMATION_MISMATCH" });
+      }
+
+      const blockers = Object.entries(tenant._count)
+        .filter(([, count]) => Number(count) > 0)
+        .map(([relation, count]) => ({ relation, count: Number(count) }));
+      if (blockers.length) {
+        throw Object.assign(new Error("TENANT_HAS_DEPENDENCIES"), {
+          code: "TENANT_HAS_DEPENDENCIES",
+          blockers,
+        });
+      }
+
+      // This audit record intentionally has tenantId=NULL so it survives tenant deletion.
+      await tx.auditLog.create({
+        data: {
+          actorUserId: req.auth!.userId,
+          tenantId: null,
+          action: "TENANT_PERMANENTLY_DELETED",
+          entityType: "Tenant",
+          entityId: tenant.id,
+          ipAddress: req.ip,
+          userAgent: req.get("user-agent")?.slice(0, 500),
+          metadata: { tenantId: tenant.id, name: tenant.name, slug: tenant.slug },
+        },
+      });
+      await tx.tenant.delete({ where: { id: tenant.id } });
+      return { id: tenant.id, name: tenant.name, slug: tenant.slug };
+    });
+
+    return res.json({ data: { deleted: true, tenant: result } });
+  } catch (error: unknown) {
+    const code = getPrismaErrorCode(error);
+    if (code === "TENANT_NOT_FOUND") return res.status(404).json({ error: { code, message: "Tenant not found." } });
+    if (code === "TENANT_MUST_BE_IN_TRASH") return res.status(409).json({ error: { code, message: "Move the suspended tenant to Trash before permanent deletion." } });
+    if (code === "TENANT_MUST_BE_SUSPENDED") return res.status(409).json({ error: { code, message: "Tenant must be suspended before permanent deletion." } });
+    if (code === "TENANT_CONFIRMATION_MISMATCH") return res.status(400).json({ error: { code, message: "confirmSlug does not match this workspace slug." } });
+    if (code === "TENANT_HAS_DEPENDENCIES") {
+      return res.status(409).json({
+        error: {
+          code,
+          message: "Permanent deletion is blocked while related business or payment records exist. Retain or explicitly archive those records first.",
+          dependencies: getErrorBlockers(error) ?? [],
+        },
+      });
+    }
+    if (code === "P2003" || code === "P2014") {
+      return res.status(409).json({
+        error: {
+          code: "TENANT_HAS_DEPENDENCIES",
+          message: "Permanent deletion is blocked by related records.",
+        },
+      });
+    }
     next(error);
   }
 });

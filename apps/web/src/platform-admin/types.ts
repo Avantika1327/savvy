@@ -30,7 +30,9 @@ export type Tenant = {
   activatedAt: string | null;
   deactivatedAt: string | null;
   trialEndsAt: string | null;
+  currentPeriodStartsAt?: string | null;
   currentPeriodEndsAt: string | null;
+  deletedAt?: string | null;
   memberCount: number;
 };
 

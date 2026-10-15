@@ -1,4 +1,4 @@
-import { ArrowUpRight, CalendarDays, History, Mail, Power, Users } from "lucide-react";
+import { CalendarDays, CreditCard, Eye, Mail, Power, Trash2, Users } from "lucide-react";
 import type { Tenant, TenantStatus } from "../types";
 import PageSearchBar from "../components/PageSearchBar";
 import TenantCard from "../components/TenantCard";
@@ -11,6 +11,8 @@ type Props = {
   onSearchChange: (value: string) => void;
   statusLabels: Record<TenantStatus, string>;
   onOpenTenant: (tenant: Tenant) => void;
+  onViewDetails: (tenant: Tenant) => void;
+  onOpenTrash: () => void;
   onChangeStatus: (tenant: Tenant) => void;
 };
 
@@ -21,11 +23,16 @@ export default function TenantWorkspacesPage({
   onSearchChange,
   statusLabels,
   onOpenTenant,
+  onViewDetails,
+  onOpenTrash,
   onChangeStatus,
 }: Props) {
   return (
     <section className="platform-data-page">
-      <PageSearchBar value={search} onChange={onSearchChange} resultCount={tenants.length} />
+      <div className="tenant-list-toolbar">
+        <PageSearchBar value={search} onChange={onSearchChange} resultCount={tenants.length} />
+        <button type="button" className="page-card-secondary-action" onClick={onOpenTrash}><Trash2 size={15} /> View trash</button>
+      </div>
 
       {loading ? (
         <div className="page-state-card"><span className="page-state-spinner" />Loading tenant workspaces…</div>
@@ -44,8 +51,11 @@ export default function TenantWorkspacesPage({
               statusLabels={statusLabels}
               actions={
                 <>
-                  <button className="page-card-primary-action" onClick={() => onOpenTenant(tenant)}>
-                    <History size={15} /> Manage workspace
+                  <button className="page-card-primary-action" onClick={() => onViewDetails(tenant)}>
+                    <Eye size={15} /> View details
+                  </button>
+                  <button className="page-card-secondary-action" onClick={() => onOpenTenant(tenant)}>
+                    <CreditCard size={15} /> Manage billing
                   </button>
                   <button
                     className="page-card-secondary-action"
@@ -55,7 +65,6 @@ export default function TenantWorkspacesPage({
                   >
                     <Power size={15} /> {tenant.status === "SUSPENDED" ? "Reactivate" : "Suspend"}
                   </button>
-                  <ArrowUpRight size={15} className="page-card-action-mark" />
                 </>
               }
             >

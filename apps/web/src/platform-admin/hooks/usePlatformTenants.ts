@@ -34,6 +34,10 @@ export function usePlatformTenants() {
   const [subPrice, setSubPrice] = useState("");
   const [subPlan, setSubPlan] = useState<TenantForm["planCode"]>("STARTER");
   const [subCycle, setSubCycle] = useState<TenantForm["billingCycle"]>("MONTHLY");
+  const [trashTenants, setTrashTenants] = useState<Tenant[]>([]);
+  const [trashLoading, setTrashLoading] = useState(false);
+  const [tenantSaving, setTenantSaving] = useState(false);
+  const [tenantDeleting, setTenantDeleting] = useState(false);
 
   const load = useCallback(async (): Promise<Tenant[]> => {
     setLoading(true);
@@ -54,6 +58,129 @@ export function usePlatformTenants() {
   useEffect(() => {
     void load();
   }, [load]);
+
+
+  const loadTrash = useCallback(async (): Promise<void> => {
+    setTrashLoading(true);
+    setError("");
+    try {
+      const result = await platformRequest<ApiList<Tenant>>("/platform/tenants/trash");
+      setTrashTenants(Array.isArray(result.data) ? result.data : []);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to load deleted workspaces.");
+      setTrashTenants([]);
+    } finally {
+      setTrashLoading(false);
+    }
+  }, []);
+
+  const updateTenant = useCallback(async (
+    tenantId: string,
+    values: { name: string; slug: string; contactName: string; contactEmail: string; contactPhone: string },
+  ): Promise<boolean> => {
+    setTenantSaving(true);
+    setError("");
+    setNotice("");
+    try {
+      await platformRequest<ApiData<Tenant>>(`/platform/tenants/${encodeURIComponent(tenantId)}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: values.name,
+          slug: values.slug,
+          contactName: values.contactName || null,
+          contactEmail: values.contactEmail || null,
+          contactPhone: values.contactPhone || null,
+        }),
+      });
+      setNotice("Workspace details updated successfully.");
+      await load();
+      return true;
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to update workspace details.");
+      return false;
+    } finally {
+      setTenantSaving(false);
+    }
+  }, [load]);
+
+  const softDeleteTenant = useCallback(async (tenant: Tenant): Promise<boolean> => {
+    if (tenant.status !== "SUSPENDED") {
+      setError("Suspend the workspace before moving it to trash.");
+      return false;
+    }
+    if (!window.confirm(`Move ${tenant.name} to trash? It will be removed from the active workspace list but can be restored later.`)) {
+      return false;
+    }
+
+    setTenantDeleting(true);
+    setError("");
+    setNotice("");
+    try {
+      // Backend contract: DELETE performs a soft delete by setting deleted_at.
+      await platformRequest(`/platform/tenants/${encodeURIComponent(tenant.id)}`, { method: "DELETE" });
+      setNotice(`${tenant.name} was moved to trash.`);
+      await load();
+      return true;
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to move workspace to trash.");
+      return false;
+    } finally {
+      setTenantDeleting(false);
+    }
+  }, [load]);
+
+  const restoreTenant = useCallback(async (tenant: Tenant): Promise<boolean> => {
+    if (!window.confirm(`Restore ${tenant.name} to the workspace list?`)) return false;
+    setError("");
+    setNotice("");
+    try {
+      await platformRequest(`/platform/tenants/${encodeURIComponent(tenant.id)}/restore`, {
+        method: "PATCH",
+      });
+      setNotice(`${tenant.name} was restored.`);
+      await Promise.all([load(), loadTrash()]);
+      return true;
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to restore workspace.");
+      return false;
+    }
+  }, [load, loadTrash]);
+
+  const permanentlyDeleteTenant = useCallback(async (tenant: Tenant): Promise<boolean> => {
+    if (!tenant.deletedAt) {
+      setError("Only a workspace already in trash can be permanently deleted.");
+      return false;
+    }
+    const typedSlug = window.prompt(
+      `Permanent deletion cannot be undone. Type the workspace slug exactly to continue:\n${tenant.slug}`,
+    );
+    if (typedSlug === null) return false;
+    if (typedSlug.trim() !== tenant.slug) {
+      setError("Workspace slug did not match. Permanent deletion was cancelled.");
+      return false;
+    }
+    if (!window.confirm(`Permanently delete ${tenant.name}? Related payment and audit records may prevent deletion. This action cannot be undone.`)) {
+      return false;
+    }
+
+    setTenantDeleting(true);
+    setError("");
+    setNotice("");
+    try {
+      // Backend must require deleted_at IS NOT NULL and enforce retention/FK rules.
+      await platformRequest(`/platform/tenants/${encodeURIComponent(tenant.id)}/permanent`, {
+        method: "DELETE",
+      });
+      setNotice(`${tenant.name} was permanently deleted.`);
+      await loadTrash();
+      return true;
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to permanently delete workspace.");
+      return false;
+    } finally {
+      setTenantDeleting(false);
+    }
+  }, [loadTrash]);
 
   const loadPayments = useCallback(async (tenant: Tenant) => {
     setSelected(tenant);
@@ -297,6 +424,10 @@ export function usePlatformTenants() {
   return {
     tenants,
     loading,
+    trashTenants,
+    trashLoading,
+    tenantSaving,
+    tenantDeleting,
     search,
     setSearch,
     showCreate,
@@ -327,6 +458,11 @@ export function usePlatformTenants() {
     subCycle,
     setSubCycle,
     load,
+    loadTrash,
+    updateTenant,
+    softDeleteTenant,
+    restoreTenant,
+    permanentlyDeleteTenant,
     loadPayments,
     create,
     changeStatus,

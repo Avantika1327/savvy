@@ -11,6 +11,8 @@ import PlatformMetrics from "./platform-admin/components/PlatformMetrics";
 import OverviewPage from "./platform-admin/pages/OverviewPage";
 import TenantWorkspacesPage from "./platform-admin/pages/TenantWorkspacesPage";
 import PaymentReviewPage from "./platform-admin/pages/PaymentReviewPage";
+import TenantDetailPage from "./platform-admin/pages/TenantDetailPage";
+import TenantTrashPage from "./platform-admin/pages/TenantTrashPage";
 import CreateTenantModal from "./platform-admin/components/CreateTenantModal";
 import ManageTenantModal from "./platform-admin/components/ManageTenantModal";
 import { usePlatformTenants } from "./platform-admin/hooks/usePlatformTenants";
@@ -40,16 +42,11 @@ const VIEW_DESCRIPTIONS: Record<PlatformView, string> = {
 };
 
 function getView(path: string): PlatformView | null {
-  switch (path.replace(/\/+$/, "") || "/") {
-    case "/platform-admin":
-      return "overview";
-    case "/platform-admin/tenants":
-      return "tenants";
-    case "/platform-admin/payments":
-      return "payments";
-    default:
-      return null;
-  }
+  const normalized = path.replace(/\/+$/, "") || "/";
+  if (normalized === "/platform-admin") return "overview";
+  if (normalized === "/platform-admin/tenants" || normalized.startsWith("/platform-admin/tenants/")) return "tenants";
+  if (normalized === "/platform-admin/payments") return "payments";
+  return null;
 }
 
 export default function PlatformTenants({ session, onLogout }: Props) {
@@ -59,6 +56,10 @@ export default function PlatformTenants({ session, onLogout }: Props) {
   // The child <Routes> below control which page renders. This value is only used
   // to keep shared navigation and headings in sync with the current URL.
   const view = getView(location.pathname) ?? "overview";
+  const normalizedPath = location.pathname.replace(/\/+$/, "") || "/";
+  const isTrashRoute = normalizedPath === "/platform-admin/tenants/trash";
+  const isTenantDetailRoute = normalizedPath.startsWith("/platform-admin/tenants/") && !isTrashRoute;
+  const isNestedTenantPage = isTrashRoute || isTenantDetailRoute;
   const filteredTenants = view === "payments"
     ? state.filtered.filter((tenant) => tenant.effectiveStatus === "PAYMENT_PENDING")
     : state.filtered;
@@ -84,20 +85,22 @@ export default function PlatformTenants({ session, onLogout }: Props) {
           session={session}
         />
         <section className="platform-content">
-          <PlatformPageHeading
-            view={view}
-            viewTitles={VIEW_TITLES}
-            viewDescriptions={VIEW_DESCRIPTIONS}
-            loading={state.loading}
-            tenantCount={state.tenants.length}
-            onCreate={() => {
-              state.setForm(emptyForm);
-              state.setShowCreate(true);
-              state.setError("");
-            }}
-            onOpenTenants={() => setView("tenants")}
-            onRefresh={() => void state.load()}
-          />
+          {!isNestedTenantPage && (
+            <PlatformPageHeading
+              view={view}
+              viewTitles={VIEW_TITLES}
+              viewDescriptions={VIEW_DESCRIPTIONS}
+              loading={state.loading}
+              tenantCount={state.tenants.length}
+              onCreate={() => {
+                state.setForm(emptyForm);
+                state.setShowCreate(true);
+                state.setError("");
+              }}
+              onOpenTenants={() => setView("tenants")}
+              onRefresh={() => void state.load()}
+            />
+          )}
           <PlatformAlerts
             error={state.error}
             notice={state.notice}
@@ -144,7 +147,40 @@ export default function PlatformTenants({ session, onLogout }: Props) {
                   onSearchChange={state.setSearch}
                   statusLabels={statusLabels}
                   onOpenTenant={(tenant) => void state.loadPayments(tenant)}
+                  onViewDetails={(tenant) => navigate(`/platform-admin/tenants/${encodeURIComponent(tenant.id)}`)}
+                  onOpenTrash={() => navigate("/platform-admin/tenants/trash")}
                   onChangeStatus={(tenant) => void state.changeStatus(tenant)}
+                />
+              }
+            />
+            <Route
+              path="tenants/:tenantId"
+              element={
+                <TenantDetailPage
+                  tenants={state.tenants}
+                  loading={state.loading}
+                  statusLabels={statusLabels}
+                  saving={state.tenantSaving}
+                  deleting={state.tenantDeleting}
+                  onBack={() => navigate("/platform-admin/tenants")}
+                  onSave={state.updateTenant}
+                  onManageSubscription={(tenant) => void state.loadPayments(tenant)}
+                  onChangeStatus={(tenant) => void state.changeStatus(tenant)}
+                  onSoftDelete={state.softDeleteTenant}
+                />
+              }
+            />
+            <Route
+              path="tenants/trash"
+              element={
+                <TenantTrashPage
+                  tenants={state.trashTenants}
+                  loading={state.trashLoading}
+                  busyDeleting={state.tenantDeleting}
+                  statusLabels={statusLabels}
+                  onLoad={state.loadTrash}
+                  onRestore={state.restoreTenant}
+                  onPermanentDelete={state.permanentlyDeleteTenant}
                 />
               }
             />
