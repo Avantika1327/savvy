@@ -1,4 +1,10 @@
-import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import {
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 import { ShieldCheck } from "lucide-react";
 import type { Session } from "./authTypes";
 import { emptyForm, statusLabels } from "./platform-admin/constants";
@@ -44,10 +50,14 @@ const VIEW_DESCRIPTIONS: Record<PlatformView, string> = {
 function getView(path: string): PlatformView | null {
   const normalized = path.replace(/\/+$/, "") || "/";
   if (normalized === "/platform-admin") return "overview";
-  if (normalized === "/platform-admin/tenants" || normalized.startsWith("/platform-admin/tenants/")) return "tenants";
+  if (
+    normalized === "/platform-admin/tenants" ||
+    normalized.startsWith("/platform-admin/tenants/")
+  )
+    return "tenants";
   if (normalized === "/platform-admin/payments") return "payments";
-      return null;
-  }
+  return null;
+}
 
 export default function PlatformTenants({ session, onLogout }: Props) {
   const location = useLocation();
@@ -58,11 +68,15 @@ export default function PlatformTenants({ session, onLogout }: Props) {
   const view = getView(location.pathname) ?? "overview";
   const normalizedPath = location.pathname.replace(/\/+$/, "") || "/";
   const isTrashRoute = normalizedPath === "/platform-admin/tenants/trash";
-  const isTenantDetailRoute = normalizedPath.startsWith("/platform-admin/tenants/") && !isTrashRoute;
+  const isTenantDetailRoute =
+    normalizedPath.startsWith("/platform-admin/tenants/") && !isTrashRoute;
   const isNestedTenantPage = isTrashRoute || isTenantDetailRoute;
-  const filteredTenants = view === "payments"
-    ? state.filtered.filter((tenant) => tenant.effectiveStatus === "PAYMENT_PENDING")
-    : state.filtered;
+  const filteredTenants =
+    view === "payments"
+      ? state.filtered.filter(
+          (tenant) => tenant.effectiveStatus === "PAYMENT_PENDING",
+        )
+      : state.filtered;
 
   const setView = (nextView: PlatformView) => navigate(ROUTES[nextView]);
 
@@ -86,20 +100,20 @@ export default function PlatformTenants({ session, onLogout }: Props) {
         />
         <section className="platform-content">
           {!isNestedTenantPage && (
-          <PlatformPageHeading
-            view={view}
-            viewTitles={VIEW_TITLES}
-            viewDescriptions={VIEW_DESCRIPTIONS}
-            loading={state.loading}
-            tenantCount={state.tenants.length}
-            onCreate={() => {
-              state.setForm(emptyForm);
-              state.setShowCreate(true);
-              state.setError("");
-            }}
-            onOpenTenants={() => setView("tenants")}
-            onRefresh={() => void state.load()}
-          />
+            <PlatformPageHeading
+              view={view}
+              viewTitles={VIEW_TITLES}
+              viewDescriptions={VIEW_DESCRIPTIONS}
+              loading={state.loading}
+              tenantCount={state.tenants.length}
+              onCreate={() => {
+                state.setForm(emptyForm);
+                state.setShowCreate(true);
+                state.setError("");
+              }}
+              onOpenTenants={() => setView("tenants")}
+              onRefresh={() => void state.load()}
+            />
           )}
           <PlatformAlerts
             error={state.error}
@@ -113,7 +127,10 @@ export default function PlatformTenants({ session, onLogout }: Props) {
               index
               element={
                 <>
-                  <PlatformMetrics metrics={state.metrics} loading={state.loading} />
+                  <PlatformMetrics
+                    metrics={state.metrics}
+                    loading={state.loading}
+                  />
                   <OverviewPage
                     loading={state.loading}
                     tenants={state.tenants}
@@ -147,7 +164,11 @@ export default function PlatformTenants({ session, onLogout }: Props) {
                   onSearchChange={state.setSearch}
                   statusLabels={statusLabels}
                   onOpenTenant={(tenant) => void state.loadPayments(tenant)}
-                  onViewDetails={(tenant) => navigate(`/platform-admin/tenants/${encodeURIComponent(tenant.id)}`)}
+                  onViewDetails={(tenant) =>
+                    navigate(
+                      `/platform-admin/tenants/${encodeURIComponent(tenant.id)}`,
+                    )
+                  }
                   onOpenTrash={() => navigate("/platform-admin/tenants/trash")}
                   onChangeStatus={(tenant) => void state.changeStatus(tenant)}
                 />
@@ -164,7 +185,9 @@ export default function PlatformTenants({ session, onLogout }: Props) {
                   deleting={state.tenantDeleting}
                   onBack={() => navigate("/platform-admin/tenants")}
                   onSave={state.updateTenant}
-                  onManageSubscription={(tenant) => void state.loadPayments(tenant)}
+                  onManageSubscription={(tenant) =>
+                    void state.loadPayments(tenant)
+                  }
                   onChangeStatus={(tenant) => void state.changeStatus(tenant)}
                   onSoftDelete={state.softDeleteTenant}
                 />
@@ -197,12 +220,18 @@ export default function PlatformTenants({ session, onLogout }: Props) {
                 />
               }
             />
-            <Route path="*" element={<Navigate to={ROUTES.overview} replace />} />
+            <Route
+              path="*"
+              element={<Navigate to={ROUTES.overview} replace />}
+            />
           </Routes>
 
           <div className="platform-foot">
             © 2026 Savvy Platform{" "}
-            <span><ShieldCheck size={13} /> Platform administration · Tenant data remains isolated</span>
+            <span>
+              <ShieldCheck size={13} /> Platform administration · Tenant data
+              remains isolated
+            </span>
           </div>
         </section>
       </main>

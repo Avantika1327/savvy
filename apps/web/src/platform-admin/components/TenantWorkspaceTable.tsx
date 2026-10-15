@@ -40,7 +40,6 @@ export default function TenantWorkspaceTable({
           <h2>
             {view === "tenants"
               ? "All customer workspaces"
-
               : "Tenants awaiting payment"}
           </h2>
           <p>
@@ -135,8 +134,8 @@ export default function TenantWorkspaceTable({
                       <CalendarDays size={13} />
                       {t.currentPeriodEndsAt || t.trialEndsAt
                         ? new Date(
-                          t.currentPeriodEndsAt || t.trialEndsAt!,
-                        ).toLocaleDateString("en-IN")
+                            t.currentPeriodEndsAt || t.trialEndsAt!,
+                          ).toLocaleDateString("en-IN")
                         : "—"}
                     </span>
                   </td>

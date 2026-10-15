@@ -25,7 +25,9 @@ export async function platformRequest<T>(
       credentials: "include",
     });
   } catch {
-    throw new Error("Unable to connect to the API. Check your connection and try again.");
+    throw new Error(
+      "Unable to connect to the API. Check your connection and try again.",
+    );
   }
 
   const payload: unknown = await response.json().catch(() => ({}));

@@ -21,7 +21,9 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   const payload = (await response.json().catch(() => ({}))) as ApiEnvelope<T>;
   if (!response.ok) {
-    throw new Error(payload.error?.message ?? `Request failed (${response.status}).`);
+    throw new Error(
+      payload.error?.message ?? `Request failed (${response.status}).`,
+    );
   }
 
   return payload.data;

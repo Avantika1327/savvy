@@ -21,7 +21,15 @@ type Props = {
   label?: string;
 };
 
-type Command = "bold" | "italic" | "underline" | "strikeThrough" | "insertUnorderedList" | "insertOrderedList" | "formatBlock" | "removeFormat";
+type Command =
+  | "bold"
+  | "italic"
+  | "underline"
+  | "strikeThrough"
+  | "insertUnorderedList"
+  | "insertOrderedList"
+  | "formatBlock"
+  | "removeFormat";
 
 export default function RichTextEditor({
   value,
@@ -36,7 +44,10 @@ export default function RichTextEditor({
     const editor = editorRef.current;
     if (!editor) return;
     const cleanValue = sanitizeRichTextHtml(value);
-    if (cleanValue !== lastEmittedValue.current || editor.innerHTML !== cleanValue) {
+    if (
+      cleanValue !== lastEmittedValue.current ||
+      editor.innerHTML !== cleanValue
+    ) {
       editor.innerHTML = cleanValue;
       lastEmittedValue.current = cleanValue;
     }
@@ -61,7 +72,9 @@ export default function RichTextEditor({
 
   function insertLink() {
     if (disabled || !editorRef.current) return;
-    const entered = window.prompt("Enter a web link (https://…) or email link (mailto:…):");
+    const entered = window.prompt(
+      "Enter a web link (https://…) or email link (mailto:…):",
+    );
     if (!entered) return;
     const candidate = entered.trim();
     if (!/^(https?:\/\/|mailto:)/i.test(candidate)) {
@@ -108,19 +121,39 @@ export default function RichTextEditor({
 
   return (
     <div className="plant-rich-editor">
-      <div className="plant-rich-editor-toolbar" role="toolbar" aria-label={`${label} formatting`}>
+      <div
+        className="plant-rich-editor-toolbar"
+        role="toolbar"
+        aria-label={`${label} formatting`}
+      >
         {tool("Bold", <Bold size={15} />, () => runCommand("bold"))}
         {tool("Italic", <Italic size={15} />, () => runCommand("italic"))}
-        {tool("Underline", <Underline size={15} />, () => runCommand("underline"))}
-        {tool("Strikethrough", <Strikethrough size={15} />, () => runCommand("strikeThrough"))}
+        {tool("Underline", <Underline size={15} />, () =>
+          runCommand("underline"),
+        )}
+        {tool("Strikethrough", <Strikethrough size={15} />, () =>
+          runCommand("strikeThrough"),
+        )}
         <span className="plant-editor-divider" />
-        {tool("Heading 2", <Heading2 size={15} />, () => runCommand("formatBlock", "h2"))}
-        {tool("Bulleted list", <List size={15} />, () => runCommand("insertUnorderedList"))}
-        {tool("Numbered list", <ListOrdered size={15} />, () => runCommand("insertOrderedList"))}
-        {tool("Quote", <Quote size={15} />, () => runCommand("formatBlock", "blockquote"))}
+        {tool("Heading 2", <Heading2 size={15} />, () =>
+          runCommand("formatBlock", "h2"),
+        )}
+        {tool("Bulleted list", <List size={15} />, () =>
+          runCommand("insertUnorderedList"),
+        )}
+        {tool("Numbered list", <ListOrdered size={15} />, () =>
+          runCommand("insertOrderedList"),
+        )}
+        {tool("Quote", <Quote size={15} />, () =>
+          runCommand("formatBlock", "blockquote"),
+        )}
         {tool("Insert link", <LinkIcon size={15} />, insertLink)}
-        {tool("Code block", <Code size={15} />, () => runCommand("formatBlock", "pre"))}
-        {tool("Clear formatting", <RemoveFormatting size={15} />, () => runCommand("removeFormat"))}
+        {tool("Code block", <Code size={15} />, () =>
+          runCommand("formatBlock", "pre"),
+        )}
+        {tool("Clear formatting", <RemoveFormatting size={15} />, () =>
+          runCommand("removeFormat"),
+        )}
       </div>
       <div
         ref={editorRef}

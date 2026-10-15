@@ -54,7 +54,8 @@ export default function Login({
       if (!response.ok)
         throw new Error(payload?.error?.message ?? "Sign in failed.");
       const safeSession = normalizeSession(payload);
-      if (!safeSession) throw new Error("The sign-in response was not in the expected format.");
+      if (!safeSession)
+        throw new Error("The sign-in response was not in the expected format.");
       onLogin(safeSession);
       setPassword("");
     } catch (e) {

@@ -99,6 +99,7 @@ model Tenant {
   payments                         Payment[]
   auditLogs                        AuditLog[]
   plants                           Plant[]
+  plantManagerInvitations          PlantManagerInvitation[]
   products                         Product[]
   customers                        Customer[]
   drivers                          Driver[]
@@ -281,14 +282,15 @@ model User {
   createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamp(3)
   updatedAt       DateTime     @updatedAt @map("updated_at") @db.Timestamp(3)
 
-  memberships        TenantMembership[]
-  vendors            Vendor[]
-  managedPlants      Plant[]            @relation("PlantManager")
-  rawStockLogs       RawStockLog[]
-  uploadedLabReports LabReport[]        @relation("LabReportUploader")
-  createdPayments    Payment[]          @relation("PaymentCreatedBy")
-  confirmedPayments  Payment[]          @relation("PaymentConfirmedBy")
-  auditLogs          AuditLog[]         @relation("AuditActor")
+  memberships                    TenantMembership[]
+  vendors                        Vendor[]
+  managedPlants                  Plant[]                  @relation("PlantManager")
+  createdPlantManagerInvitations PlantManagerInvitation[] @relation("PlantManagerInvitationCreator")
+  rawStockLogs                   RawStockLog[]
+  uploadedLabReports             LabReport[]              @relation("LabReportUploader")
+  createdPayments                Payment[]                @relation("PaymentCreatedBy")
+  confirmedPayments              Payment[]                @relation("PaymentConfirmedBy")
+  auditLogs                      AuditLog[]               @relation("AuditActor")
 
   @@map("users")
 }
@@ -320,6 +322,7 @@ model Plant {
 
   tenant                      Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   managerRecord               User?                        @relation("PlantManager", fields: [managerId], references: [id], onDelete: Cascade)
+  managerInvitations          PlantManagerInvitation[]
   vendor                      Vendor?                      @relation("PlantVendor", fields: [vendorId], references: [id], onDelete: Restrict)
   routes                      Route[]
   drivers                     Driver[]
@@ -340,6 +343,28 @@ model Plant {
   @@index([tenantId, isActive, deletedAt])
   @@index([tenantId, vendorId])
   @@map("plants")
+}
+
+model PlantManagerInvitation {
+  id              String    @id @default(cuid())
+  tenantId        String    @map("tenant_id")
+  plantId         Int       @map("plant_id")
+  managerName     String    @map("manager_name")
+  email           String
+  tokenHash       String    @unique @map("token_hash")
+  expiresAt       DateTime  @map("expires_at") @db.Timestamp(3)
+  acceptedAt      DateTime? @map("accepted_at") @db.Timestamp(3)
+  revokedAt       DateTime? @map("revoked_at") @db.Timestamp(3)
+  createdByUserId Int       @map("created_by_user_id")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plant     Plant  @relation(fields: [plantId], references: [id], onDelete: Cascade)
+  createdBy User   @relation("PlantManagerInvitationCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, plantId, expiresAt])
+  @@index([email, expiresAt])
+  @@map("plant_manager_invitations")
 }
 
 model Product {

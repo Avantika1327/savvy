@@ -1,5 +1,14 @@
-import { ArrowUpRight, ChevronDown, CircleHelp, Droplets, Factory } from "lucide-react";
-import { workspaceNavigationForRole, workspaceUrl } from "../../data/dashboardData";
+import {
+  ArrowUpRight,
+  ChevronDown,
+  CircleHelp,
+  Droplets,
+  Factory,
+} from "lucide-react";
+import {
+  workspaceNavigationForRole,
+  workspaceUrl,
+} from "../../data/dashboardData";
 import type { WorkspacePage, WorkspaceRole } from "../../types/dashboard";
 
 type Props = {
@@ -43,15 +52,21 @@ export default function WorkspaceSidebar({
       aria-label="Workspace navigation"
     >
       <div className="brand">
-        <div className="brand-mark"><Droplets size={22} /></div>
+        <div className="brand-mark">
+          <Droplets size={22} />
+        </div>
         <div>
-          <strong>savvy<span>.</span></strong>
+          <strong>
+            savvy<span>.</span>
+          </strong>
           <small>OPERATIONS PLATFORM</small>
         </div>
       </div>
 
       <div className="workspace">
-        <div className="plant-icon"><Factory size={18} /></div>
+        <div className="plant-icon">
+          <Factory size={18} />
+        </div>
         <div>
           <b>{tenantName}</b>
           <small>Tenant workspace</small>
@@ -78,7 +93,9 @@ export default function WorkspaceSidebar({
                 >
                   <Icon size={18} />
                   <span>{item.label}</span>
-                  {item.key === "raw-materials-stock" && <i aria-label="3 alerts">3</i>}
+                  {item.key === "raw-materials-stock" && (
+                    <i aria-label="3 alerts">3</i>
+                  )}
                 </button>
               );
             })}
@@ -89,13 +106,21 @@ export default function WorkspaceSidebar({
       <div className="sidebar-bottom">
         <div className="help">
           <CircleHelp size={19} />
-          <div><b>Need a hand?</b><small>Visit the help centre</small></div>
+          <div>
+            <b>Need a hand?</b>
+            <small>Visit the help centre</small>
+          </div>
           <ArrowUpRight size={15} />
         </div>
         <div className="user">
           <div className="avatar">{initials(userName)}</div>
-          <div><b>{userName}</b><small>Workspace account</small></div>
-          <button className="logout-mini" type="button" onClick={onLogout}>Sign out</button>
+          <div>
+            <b>{userName}</b>
+            <small>Workspace account</small>
+          </div>
+          <button className="logout-mini" type="button" onClick={onLogout}>
+            Sign out
+          </button>
         </div>
       </div>
     </aside>

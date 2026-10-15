@@ -9,7 +9,10 @@ type Props = {
   onLogout: () => void;
 };
 
-export default function PlatformTenantsRouteExample({ session, onLogout }: Props) {
+export default function PlatformTenantsRouteExample({
+  session,
+  onLogout,
+}: Props) {
   return (
     <Routes>
       <Route

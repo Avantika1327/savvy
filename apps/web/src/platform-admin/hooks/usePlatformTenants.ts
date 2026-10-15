@@ -1,5 +1,17 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { Banknote, Building2, CircleCheck, Clock3, CreditCard } from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+} from "react";
+import {
+  Banknote,
+  Building2,
+  CircleCheck,
+  Clock3,
+  CreditCard,
+} from "lucide-react";
 import { emptyForm, statusLabels } from "../constants";
 import type {
   Payment,
@@ -33,7 +45,8 @@ export function usePlatformTenants() {
   const [busyPayment, setBusyPayment] = useState(false);
   const [subPrice, setSubPrice] = useState("");
   const [subPlan, setSubPlan] = useState<TenantForm["planCode"]>("STARTER");
-  const [subCycle, setSubCycle] = useState<TenantForm["billingCycle"]>("MONTHLY");
+  const [subCycle, setSubCycle] =
+    useState<TenantForm["billingCycle"]>("MONTHLY");
   const [trashTenants, setTrashTenants] = useState<Tenant[]>([]);
   const [trashLoading, setTrashLoading] = useState(false);
   const [tenantSaving, setTenantSaving] = useState(false);
@@ -43,12 +56,15 @@ export function usePlatformTenants() {
     setLoading(true);
     setError("");
     try {
-      const result = await platformRequest<ApiList<Tenant>>("/platform/tenants");
+      const result =
+        await platformRequest<ApiList<Tenant>>("/platform/tenants");
       const nextTenants = Array.isArray(result.data) ? result.data : [];
       setTenants(nextTenants);
       return nextTenants;
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to load tenants.");
+      setError(
+        cause instanceof Error ? cause.message : "Unable to load tenants.",
+      );
       return [];
     } finally {
       setLoading(false);
@@ -59,136 +75,202 @@ export function usePlatformTenants() {
     void load();
   }, [load]);
 
-
   const loadTrash = useCallback(async (): Promise<void> => {
     setTrashLoading(true);
     setError("");
     try {
-      const result = await platformRequest<ApiList<Tenant>>("/platform/tenants/trash");
+      const result = await platformRequest<ApiList<Tenant>>(
+        "/platform/tenants/trash",
+      );
       setTrashTenants(Array.isArray(result.data) ? result.data : []);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to load deleted workspaces.");
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Unable to load deleted workspaces.",
+      );
       setTrashTenants([]);
     } finally {
       setTrashLoading(false);
     }
   }, []);
 
-  const updateTenant = useCallback(async (
-    tenantId: string,
-    values: { name: string; slug: string; contactName: string; contactEmail: string; contactPhone: string },
-  ): Promise<boolean> => {
-    setTenantSaving(true);
-    setError("");
-    setNotice("");
-    try {
-      await platformRequest<ApiData<Tenant>>(`/platform/tenants/${encodeURIComponent(tenantId)}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          name: values.name,
-          slug: values.slug,
-          contactName: values.contactName || null,
-          contactEmail: values.contactEmail || null,
-          contactPhone: values.contactPhone || null,
-        }),
-      });
-      setNotice("Workspace details updated successfully.");
-      await load();
-      return true;
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to update workspace details.");
-      return false;
-    } finally {
-      setTenantSaving(false);
-    }
-  }, [load]);
+  const updateTenant = useCallback(
+    async (
+      tenantId: string,
+      values: {
+        name: string;
+        slug: string;
+        contactName: string;
+        contactEmail: string;
+        contactPhone: string;
+      },
+    ): Promise<boolean> => {
+      setTenantSaving(true);
+      setError("");
+      setNotice("");
+      try {
+        await platformRequest<ApiData<Tenant>>(
+          `/platform/tenants/${encodeURIComponent(tenantId)}`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({
+              name: values.name,
+              slug: values.slug,
+              contactName: values.contactName || null,
+              contactEmail: values.contactEmail || null,
+              contactPhone: values.contactPhone || null,
+            }),
+          },
+        );
+        setNotice("Workspace details updated successfully.");
+        await load();
+        return true;
+      } catch (cause) {
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : "Unable to update workspace details.",
+        );
+        return false;
+      } finally {
+        setTenantSaving(false);
+      }
+    },
+    [load],
+  );
 
-  const softDeleteTenant = useCallback(async (tenant: Tenant): Promise<boolean> => {
-    if (tenant.status !== "SUSPENDED") {
-      setError("Suspend the workspace before moving it to trash.");
-      return false;
-    }
-    if (!window.confirm(`Move ${tenant.name} to trash? It will be removed from the active workspace list but can be restored later.`)) {
-      return false;
-    }
+  const softDeleteTenant = useCallback(
+    async (tenant: Tenant): Promise<boolean> => {
+      if (tenant.status !== "SUSPENDED") {
+        setError("Suspend the workspace before moving it to trash.");
+        return false;
+      }
+      if (
+        !window.confirm(
+          `Move ${tenant.name} to trash? It will be removed from the active workspace list but can be restored later.`,
+        )
+      ) {
+        return false;
+      }
 
-    setTenantDeleting(true);
-    setError("");
-    setNotice("");
-    try {
-      // Backend contract: DELETE performs a soft delete by setting deleted_at.
-      await platformRequest(`/platform/tenants/${encodeURIComponent(tenant.id)}`, { method: "DELETE" });
-      setNotice(`${tenant.name} was moved to trash.`);
-      await load();
-      return true;
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to move workspace to trash.");
-      return false;
-    } finally {
-      setTenantDeleting(false);
-    }
-  }, [load]);
+      setTenantDeleting(true);
+      setError("");
+      setNotice("");
+      try {
+        // Backend contract: DELETE performs a soft delete by setting deleted_at.
+        await platformRequest(
+          `/platform/tenants/${encodeURIComponent(tenant.id)}`,
+          { method: "DELETE" },
+        );
+        setNotice(`${tenant.name} was moved to trash.`);
+        await load();
+        return true;
+      } catch (cause) {
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : "Unable to move workspace to trash.",
+        );
+        return false;
+      } finally {
+        setTenantDeleting(false);
+      }
+    },
+    [load],
+  );
 
-  const restoreTenant = useCallback(async (tenant: Tenant): Promise<boolean> => {
-    if (!window.confirm(`Restore ${tenant.name} to the workspace list?`)) return false;
-    setError("");
-    setNotice("");
-    try {
-      await platformRequest(`/platform/tenants/${encodeURIComponent(tenant.id)}/restore`, {
-        method: "PATCH",
-      });
-      setNotice(`${tenant.name} was restored.`);
-      await Promise.all([load(), loadTrash()]);
-      return true;
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to restore workspace.");
-      return false;
-    }
-  }, [load, loadTrash]);
+  const restoreTenant = useCallback(
+    async (tenant: Tenant): Promise<boolean> => {
+      if (!window.confirm(`Restore ${tenant.name} to the workspace list?`))
+        return false;
+      setError("");
+      setNotice("");
+      try {
+        await platformRequest(
+          `/platform/tenants/${encodeURIComponent(tenant.id)}/restore`,
+          {
+            method: "PATCH",
+          },
+        );
+        setNotice(`${tenant.name} was restored.`);
+        await Promise.all([load(), loadTrash()]);
+        return true;
+      } catch (cause) {
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : "Unable to restore workspace.",
+        );
+        return false;
+      }
+    },
+    [load, loadTrash],
+  );
 
-  const permanentlyDeleteTenant = useCallback(async (tenant: Tenant): Promise<boolean> => {
-    if (!tenant.deletedAt) {
-      setError("Only a workspace already in trash can be permanently deleted.");
-      return false;
-    }
-    const typedSlug = window.prompt(
-      `Permanent deletion cannot be undone. Type the workspace slug exactly to continue:\n${tenant.slug}`,
-    );
-    if (typedSlug === null) return false;
-    if (typedSlug.trim() !== tenant.slug) {
-      setError("Workspace slug did not match. Permanent deletion was cancelled.");
-      return false;
-    }
-    if (!window.confirm(`Permanently delete ${tenant.name}? Related payment and audit records may prevent deletion. This action cannot be undone.`)) {
-      return false;
-    }
+  const permanentlyDeleteTenant = useCallback(
+    async (tenant: Tenant): Promise<boolean> => {
+      if (!tenant.deletedAt) {
+        setError(
+          "Only a workspace already in trash can be permanently deleted.",
+        );
+        return false;
+      }
+      const typedSlug = window.prompt(
+        `Permanent deletion cannot be undone. Type the workspace slug exactly to continue:\n${tenant.slug}`,
+      );
+      if (typedSlug === null) return false;
+      if (typedSlug.trim() !== tenant.slug) {
+        setError(
+          "Workspace slug did not match. Permanent deletion was cancelled.",
+        );
+        return false;
+      }
+      if (
+        !window.confirm(
+          `Permanently delete ${tenant.name}? Related payment and audit records may prevent deletion. This action cannot be undone.`,
+        )
+      ) {
+        return false;
+      }
 
-    setTenantDeleting(true);
-    setError("");
-    setNotice("");
-    try {
-      // Backend must require deleted_at IS NOT NULL and enforce retention/FK rules.
-      await platformRequest(`/platform/tenants/${encodeURIComponent(tenant.id)}/permanent`, {
-        method: "DELETE",
-      });
-      setNotice(`${tenant.name} was permanently deleted.`);
-      await loadTrash();
-      return true;
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to permanently delete workspace.");
-      return false;
-    } finally {
-      setTenantDeleting(false);
-    }
-  }, [loadTrash]);
+      setTenantDeleting(true);
+      setError("");
+      setNotice("");
+      try {
+        // Backend must require deleted_at IS NOT NULL and enforce retention/FK rules.
+        await platformRequest(
+          `/platform/tenants/${encodeURIComponent(tenant.id)}/permanent`,
+          {
+            method: "DELETE",
+          },
+        );
+        setNotice(`${tenant.name} was permanently deleted.`);
+        await loadTrash();
+        return true;
+      } catch (cause) {
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : "Unable to permanently delete workspace.",
+        );
+        return false;
+      } finally {
+        setTenantDeleting(false);
+      }
+    },
+    [loadTrash],
+  );
 
   const loadPayments = useCallback(async (tenant: Tenant) => {
     setSelected(tenant);
     setPaymentAmount(tenant.priceAmount ?? "");
     setSubPrice(tenant.priceAmount ?? "");
-    setSubPlan(PLANS.includes(tenant.planCode.toUpperCase() as (typeof PLANS)[number])
-      ? (tenant.planCode.toUpperCase() as TenantForm["planCode"])
-      : "STARTER");
+    setSubPlan(
+      PLANS.includes(tenant.planCode.toUpperCase() as (typeof PLANS)[number])
+        ? (tenant.planCode.toUpperCase() as TenantForm["planCode"])
+        : "STARTER",
+    );
     setSubCycle(tenant.billingCycle === "ANNUAL" ? "ANNUAL" : "MONTHLY");
     setPayments([]);
     setError("");
@@ -199,228 +281,361 @@ export function usePlatformTenants() {
       );
       setPayments(Array.isArray(result.data) ? result.data : []);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to load payment history.");
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Unable to load payment history.",
+      );
     }
   }, []);
 
-  const create = useCallback(async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setSaving(true);
-    setError("");
-    setNotice("");
-    try {
-      const body = {
-        ...form,
-        contactName: form.contactName || undefined,
-        contactEmail: form.contactEmail || undefined,
-        contactPhone: form.contactPhone || undefined,
-        priceAmount: form.priceAmount === "" ? undefined : Number(form.priceAmount),
-        enabledModules: form.enabledModules,
-        rolePermissions: form.rolePermissions.filter((permission) =>
-          form.enabledModules.includes(permission.module),
-        ),
-      };
-      await platformRequest<ApiData<Tenant>>("/platform/tenants", {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
-      setShowCreate(false);
-      setForm(emptyForm);
-      setNotice(
-        "Tenant created. Trial access is time-limited; customers without a trial remain payment-pending until a payment is explicitly verified.",
-      );
-      await load();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to create tenant.");
-    } finally {
-      setSaving(false);
-    }
-  }, [form, load]);
-
-  const changeStatus = useCallback(async (tenant: Tenant) => {
-    const nextStatus: TenantStatus = tenant.status === "SUSPENDED" ? "ACTIVE" : "SUSPENDED";
-    const confirmation = nextStatus === "SUSPENDED"
-      ? `Suspend ${tenant.name}? Tenant API access should be blocked by the backend.`
-      : `Request reactivation for ${tenant.name}? The backend must confirm the subscription is still valid.`;
-    if (!window.confirm(confirmation)) return;
-
-    setError("");
-    setNotice("");
-    try {
-      await platformRequest(`/platform/tenants/${encodeURIComponent(tenant.id)}/status`, {
-        method: "PATCH",
-        body: JSON.stringify({ status: nextStatus }),
-      });
-      setNotice(`${tenant.name}: ${statusLabels[nextStatus]}.`);
-      const refreshedTenants = await load();
-      if (selected?.id === tenant.id) {
-        const refreshedTenant = refreshedTenants.find((item) => item.id === tenant.id)
-          ?? { ...tenant, status: nextStatus, effectiveStatus: nextStatus };
-        await loadPayments(refreshedTenant);
+  const create = useCallback(
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      setSaving(true);
+      setError("");
+      setNotice("");
+      try {
+        const body = {
+          ...form,
+          contactName: form.contactName || undefined,
+          contactEmail: form.contactEmail || undefined,
+          contactPhone: form.contactPhone || undefined,
+          priceAmount:
+            form.priceAmount === "" ? undefined : Number(form.priceAmount),
+          enabledModules: form.enabledModules,
+          rolePermissions: form.rolePermissions.filter((permission) =>
+            form.enabledModules.includes(permission.module),
+          ),
+        };
+        await platformRequest<ApiData<Tenant>>("/platform/tenants", {
+          method: "POST",
+          body: JSON.stringify(body),
+        });
+        setShowCreate(false);
+        setForm(emptyForm);
+        setNotice(
+          "Tenant created. Trial access is time-limited; customers without a trial remain payment-pending until a payment is explicitly verified.",
+        );
+        await load();
+      } catch (cause) {
+        setError(
+          cause instanceof Error ? cause.message : "Unable to create tenant.",
+        );
+      } finally {
+        setSaving(false);
       }
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to update status.");
-    }
-  }, [load, loadPayments, selected]);
+    },
+    [form, load],
+  );
 
-  const updateSubscription = useCallback(async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!selected) return;
-    const price = Number(subPrice);
-    if (!Number.isFinite(price) || price < 0) {
-      setError("Enter a valid subscription price.");
-      return;
-    }
+  const changeStatus = useCallback(
+    async (tenant: Tenant) => {
+      const nextStatus: TenantStatus =
+        tenant.status === "SUSPENDED" ? "ACTIVE" : "SUSPENDED";
+      const confirmation =
+        nextStatus === "SUSPENDED"
+          ? `Suspend ${tenant.name}? Tenant API access should be blocked by the backend.`
+          : `Request reactivation for ${tenant.name}? The backend must confirm the subscription is still valid.`;
+      if (!window.confirm(confirmation)) return;
 
-    setBusyPayment(true);
-    setError("");
-    setNotice("");
-    try {
-      await platformRequest(`/platform/tenants/${encodeURIComponent(selected.id)}/subscription`, {
-        method: "PATCH",
-        body: JSON.stringify({
+      setError("");
+      setNotice("");
+      try {
+        await platformRequest(
+          `/platform/tenants/${encodeURIComponent(tenant.id)}/status`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({ status: nextStatus }),
+          },
+        );
+        setNotice(`${tenant.name}: ${statusLabels[nextStatus]}.`);
+        const refreshedTenants = await load();
+        if (selected?.id === tenant.id) {
+          const refreshedTenant = refreshedTenants.find(
+            (item) => item.id === tenant.id,
+          ) ?? { ...tenant, status: nextStatus, effectiveStatus: nextStatus };
+          await loadPayments(refreshedTenant);
+        }
+      } catch (cause) {
+        setError(
+          cause instanceof Error ? cause.message : "Unable to update status.",
+        );
+      }
+    },
+    [load, loadPayments, selected],
+  );
+
+  const updateSubscription = useCallback(
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      if (!selected) return;
+      const price = Number(subPrice);
+      if (!Number.isFinite(price) || price < 0) {
+        setError("Enter a valid subscription price.");
+        return;
+      }
+
+      setBusyPayment(true);
+      setError("");
+      setNotice("");
+      try {
+        await platformRequest(
+          `/platform/tenants/${encodeURIComponent(selected.id)}/subscription`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({
+              planCode: subPlan,
+              billingCycle: subCycle,
+              priceAmount: price,
+              currency: selected.currency || "INR",
+            }),
+          },
+        );
+        setNotice(
+          "Subscription plan updated. This does not confirm payment or activate access.",
+        );
+        const refreshedTenants = await load();
+        const refreshedTenant = refreshedTenants.find(
+          (item) => item.id === selected.id,
+        ) ?? {
+          ...selected,
           planCode: subPlan,
           billingCycle: subCycle,
-          priceAmount: price,
-          currency: selected.currency || "INR",
-        }),
-      });
-      setNotice("Subscription plan updated. This does not confirm payment or activate access.");
-      const refreshedTenants = await load();
-      const refreshedTenant = refreshedTenants.find((item) => item.id === selected.id)
-        ?? { ...selected, planCode: subPlan, billingCycle: subCycle, priceAmount: String(price) };
-      await loadPayments(refreshedTenant);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to update subscription.");
-    } finally {
-      setBusyPayment(false);
-    }
-  }, [load, loadPayments, selected, subCycle, subPlan, subPrice]);
+          priceAmount: String(price),
+        };
+        await loadPayments(refreshedTenant);
+      } catch (cause) {
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : "Unable to update subscription.",
+        );
+      } finally {
+        setBusyPayment(false);
+      }
+    },
+    [load, loadPayments, selected, subCycle, subPlan, subPrice],
+  );
 
-  const recordPayment = useCallback(async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!selected) return;
-    const amount = Number(paymentAmount);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setError("Enter a payment amount greater than zero.");
-      return;
-    }
+  const recordPayment = useCallback(
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      if (!selected) return;
+      const amount = Number(paymentAmount);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        setError("Enter a payment amount greater than zero.");
+        return;
+      }
 
-    setBusyPayment(true);
-    setError("");
-    setNotice("");
-    try {
-      await platformRequest(`/platform/tenants/${encodeURIComponent(selected.id)}/payments`, {
-        method: "POST",
-        body: JSON.stringify({
-          amount,
-          currency: selected.currency || "INR",
-          method: "MANUAL",
-          reference: paymentReference.trim() || undefined,
-          notes: paymentNotes.trim() || undefined,
-        }),
-      });
-      setNotice("Payment recorded as PENDING. Verify receipt before confirming.");
-      setPaymentReference("");
-      setPaymentNotes("");
-      await loadPayments(selected);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to record payment.");
-    } finally {
-      setBusyPayment(false);
-    }
-  }, [loadPayments, paymentAmount, paymentNotes, paymentReference, selected]);
+      setBusyPayment(true);
+      setError("");
+      setNotice("");
+      try {
+        await platformRequest(
+          `/platform/tenants/${encodeURIComponent(selected.id)}/payments`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              amount,
+              currency: selected.currency || "INR",
+              method: "MANUAL",
+              reference: paymentReference.trim() || undefined,
+              notes: paymentNotes.trim() || undefined,
+            }),
+          },
+        );
+        setNotice(
+          "Payment recorded as PENDING. Verify receipt before confirming.",
+        );
+        setPaymentReference("");
+        setPaymentNotes("");
+        await loadPayments(selected);
+      } catch (cause) {
+        setError(
+          cause instanceof Error ? cause.message : "Unable to record payment.",
+        );
+      } finally {
+        setBusyPayment(false);
+      }
+    },
+    [loadPayments, paymentAmount, paymentNotes, paymentReference, selected],
+  );
 
-  const confirmPayment = useCallback(async (payment: Payment) => {
-    if (!selected) return;
-    const note = verificationNote.trim();
-    if (note.length < 3) {
-      setError("Enter how the payment was verified before confirming.");
-      return;
-    }
-    if (!window.confirm(`Confirm ₹${payment.amount} payment for ${selected.name}? This activates or renews access.`)) return;
+  const confirmPayment = useCallback(
+    async (payment: Payment) => {
+      if (!selected) return;
+      const note = verificationNote.trim();
+      if (note.length < 3) {
+        setError("Enter how the payment was verified before confirming.");
+        return;
+      }
+      if (
+        !window.confirm(
+          `Confirm ₹${payment.amount} payment for ${selected.name}? This activates or renews access.`,
+        )
+      )
+        return;
 
-    setBusyPayment(true);
-    setError("");
-    setNotice("");
-    try {
-      await platformRequest(
-        `/platform/tenants/${encodeURIComponent(selected.id)}/payments/${encodeURIComponent(payment.id)}/confirm`,
-        { method: "PATCH", body: JSON.stringify({ verificationNote: note }) },
-      );
-      setVerificationNote("");
-      setNotice("Payment confirmed and subscription period updated.");
-      const refreshedTenants = await load();
-      await loadPayments(refreshedTenants.find((item) => item.id === selected.id) ?? selected);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to confirm payment.");
-    } finally {
-      setBusyPayment(false);
-    }
-  }, [load, loadPayments, selected, verificationNote]);
+      setBusyPayment(true);
+      setError("");
+      setNotice("");
+      try {
+        await platformRequest(
+          `/platform/tenants/${encodeURIComponent(selected.id)}/payments/${encodeURIComponent(payment.id)}/confirm`,
+          { method: "PATCH", body: JSON.stringify({ verificationNote: note }) },
+        );
+        setVerificationNote("");
+        setNotice("Payment confirmed and subscription period updated.");
+        const refreshedTenants = await load();
+        await loadPayments(
+          refreshedTenants.find((item) => item.id === selected.id) ?? selected,
+        );
+      } catch (cause) {
+        setError(
+          cause instanceof Error ? cause.message : "Unable to confirm payment.",
+        );
+      } finally {
+        setBusyPayment(false);
+      }
+    },
+    [load, loadPayments, selected, verificationNote],
+  );
 
   const derived = useMemo(() => {
-    const activeCount = tenants.filter((tenant) => tenant.effectiveStatus === "ACTIVE").length;
-    const trialCount = tenants.filter((tenant) => tenant.effectiveStatus === "TRIAL").length;
-    const pendingCount = tenants.filter((tenant) => tenant.effectiveStatus === "PAYMENT_PENDING").length;
+    const activeCount = tenants.filter(
+      (tenant) => tenant.effectiveStatus === "ACTIVE",
+    ).length;
+    const trialCount = tenants.filter(
+      (tenant) => tenant.effectiveStatus === "TRIAL",
+    ).length;
+    const pendingCount = tenants.filter(
+      (tenant) => tenant.effectiveStatus === "PAYMENT_PENDING",
+    ).length;
     const restrictedCount = tenants.filter((tenant) =>
       ["SUSPENDED", "EXPIRED", "INACTIVE"].includes(tenant.effectiveStatus),
     ).length;
     const monthlyValue = tenants
-      .filter((tenant) => tenant.effectiveStatus === "ACTIVE" && tenant.priceAmount !== null)
+      .filter(
+        (tenant) =>
+          tenant.effectiveStatus === "ACTIVE" && tenant.priceAmount !== null,
+      )
       .reduce((total, tenant) => {
         const amount = Number(tenant.priceAmount);
         if (!Number.isFinite(amount) || amount < 0) return total;
         return total + amount / (tenant.billingCycle === "ANNUAL" ? 12 : 1);
       }, 0);
 
-    const money = (value: number) => new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency: "INR",
-      maximumFractionDigits: 0,
-    }).format(value);
+    const money = (value: number) =>
+      new Intl.NumberFormat("en-IN", {
+        style: "currency",
+        currency: "INR",
+        maximumFractionDigits: 0,
+      }).format(value);
 
     const metrics: PlatformMetric[] = [
-      { label: "Total workspaces", value: String(tenants.length), hint: "Customer businesses", icon: Building2, color: "violet" },
-      { label: "Active subscriptions", value: String(activeCount), hint: "Access currently enabled", icon: CircleCheck, color: "mint" },
-      { label: "Trial accounts", value: String(trialCount), hint: "Time-limited access", icon: Clock3, color: "blue" },
-      { label: "Estimated MRR", value: money(monthlyValue), hint: "Configured active pricing", icon: Banknote, color: "violet" },
-      { label: "Payment review", value: String(pendingCount), hint: "Awaiting verification", icon: CreditCard, color: "amber" },
+      {
+        label: "Total workspaces",
+        value: String(tenants.length),
+        hint: "Customer businesses",
+        icon: Building2,
+        color: "violet",
+      },
+      {
+        label: "Active subscriptions",
+        value: String(activeCount),
+        hint: "Access currently enabled",
+        icon: CircleCheck,
+        color: "mint",
+      },
+      {
+        label: "Trial accounts",
+        value: String(trialCount),
+        hint: "Time-limited access",
+        icon: Clock3,
+        color: "blue",
+      },
+      {
+        label: "Estimated MRR",
+        value: money(monthlyValue),
+        hint: "Configured active pricing",
+        icon: Banknote,
+        color: "violet",
+      },
+      {
+        label: "Payment review",
+        value: String(pendingCount),
+        hint: "Awaiting verification",
+        icon: CreditCard,
+        color: "amber",
+      },
     ];
 
     const planBreakdown = PLANS.map((plan) => ({
       plan,
-      count: tenants.filter((tenant) => tenant.planCode.toUpperCase() === plan).length,
+      count: tenants.filter((tenant) => tenant.planCode.toUpperCase() === plan)
+        .length,
     }));
     const recentTenants = [...tenants]
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      )
       .slice(0, 5);
     const attentionRank: Record<TenantStatus, number> = {
-      PAYMENT_PENDING: 0, SUSPENDED: 1, EXPIRED: 2, INACTIVE: 3, ACTIVE: 4, TRIAL: 5,
+      PAYMENT_PENDING: 0,
+      SUSPENDED: 1,
+      EXPIRED: 2,
+      INACTIVE: 3,
+      ACTIVE: 4,
+      TRIAL: 5,
     };
     const attentionTenants = [...tenants]
-      .filter((tenant) => ["PAYMENT_PENDING", "SUSPENDED", "EXPIRED", "INACTIVE"].includes(tenant.effectiveStatus))
-      .sort((a, b) => attentionRank[a.effectiveStatus] - attentionRank[b.effectiveStatus])
+      .filter((tenant) =>
+        ["PAYMENT_PENDING", "SUSPENDED", "EXPIRED", "INACTIVE"].includes(
+          tenant.effectiveStatus,
+        ),
+      )
+      .sort(
+        (a, b) =>
+          attentionRank[a.effectiveStatus] - attentionRank[b.effectiveStatus],
+      )
       .slice(0, 4);
 
-    return { activeCount, trialCount, pendingCount, restrictedCount, monthlyValue, metrics, planBreakdown, recentTenants, attentionTenants };
+    return {
+      activeCount,
+      trialCount,
+      pendingCount,
+      restrictedCount,
+      monthlyValue,
+      metrics,
+      planBreakdown,
+      recentTenants,
+      attentionTenants,
+    };
   }, [tenants]);
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
     return tenants.filter((tenant) => {
-      const matchesSearch = !query || [
-        tenant.name,
-        tenant.slug,
-        tenant.planCode,
-        tenant.ownerName,
-        tenant.ownerEmail,
-        tenant.contactName,
-        tenant.contactEmail,
-        tenant.contactPhone,
-        tenant.subscriptionStatus,
-        statusLabels[tenant.effectiveStatus],
-      ].some((value) => String(value ?? "").toLowerCase().includes(query));
+      const matchesSearch =
+        !query ||
+        [
+          tenant.name,
+          tenant.slug,
+          tenant.planCode,
+          tenant.ownerName,
+          tenant.ownerEmail,
+          tenant.contactName,
+          tenant.contactEmail,
+          tenant.contactPhone,
+          tenant.subscriptionStatus,
+          statusLabels[tenant.effectiveStatus],
+        ].some((value) =>
+          String(value ?? "")
+            .toLowerCase()
+            .includes(query),
+        );
       return matchesSearch;
     });
   }, [search, tenants]);

@@ -10,7 +10,9 @@ export default function DashboardStatCard({ stat }: Props) {
     <article className="stat-card">
       <div className="stat-top">
         <span>{stat.label}</span>
-        <div className={`stat-icon ${stat.color}`}><Icon size={18} /></div>
+        <div className={`stat-icon ${stat.color}`}>
+          <Icon size={18} />
+        </div>
       </div>
       <div className="stat-value">{stat.value}</div>
       <div className="stat-foot">

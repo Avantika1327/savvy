@@ -42,7 +42,8 @@ export const workspaceNavigation: WorkspaceNavGroup[] = [
         label: "Dashboards",
         route: "",
         icon: ChartNoAxesCombined,
-        description: "Operational summary, recent orders and plant performance.",
+        description:
+          "Operational summary, recent orders and plant performance.",
         roles: ALL_LEGACY_ROLES,
       },
     ],
@@ -56,7 +57,8 @@ export const workspaceNavigation: WorkspaceNavGroup[] = [
         label: "Plants",
         route: "plant",
         icon: Factory,
-        description: "Manage plant locations, managers and operational availability.",
+        description:
+          "Manage plant locations, managers and operational availability.",
         roles: ["admin", "vendor"],
       },
       {
@@ -64,7 +66,8 @@ export const workspaceNavigation: WorkspaceNavGroup[] = [
         label: "Routes",
         route: "route",
         icon: RouteIcon,
-        description: "Manage delivery routes and their assigned plants or drivers.",
+        description:
+          "Manage delivery routes and their assigned plants or drivers.",
         roles: ALL_LEGACY_ROLES,
       },
       {
@@ -211,7 +214,9 @@ export const workspaceNavigation: WorkspaceNavGroup[] = [
   },
 ];
 
-export const workspaceItems = workspaceNavigation.flatMap((group) => group.items);
+export const workspaceItems = workspaceNavigation.flatMap(
+  (group) => group.items,
+);
 
 /**
  * Resolve the active workspace role.
@@ -223,18 +228,37 @@ export function resolveWorkspaceRole(
   tenantRole?: string,
 ): WorkspaceRole {
   const normalize = (value?: string) =>
-    (value ?? "").trim().toLowerCase().replace(/[\s_]+/g, "-");
+    (value ?? "")
+      .trim()
+      .toLowerCase()
+      .replace(/[\s_]+/g, "-");
 
   const membership = normalize(tenantRole);
   const legacy = normalize(legacyRole);
 
-  if (["admin", "tenant-owner", "tenant-admin", "owner", "tenant-admin-user"].includes(membership)) {
+  if (
+    [
+      "admin",
+      "tenant-owner",
+      "tenant-admin",
+      "owner",
+      "tenant-admin-user",
+    ].includes(membership)
+  ) {
     return "admin";
   }
   if (membership === "vendor") return "vendor";
   if (["plant-manager", "manager"].includes(membership)) return "plant-manager";
 
-  if (["admin", "tenant-owner", "tenant-admin", "owner", "tenant-admin-user"].includes(legacy)) {
+  if (
+    [
+      "admin",
+      "tenant-owner",
+      "tenant-admin",
+      "owner",
+      "tenant-admin-user",
+    ].includes(legacy)
+  ) {
     return "admin";
   }
   if (legacy === "vendor") return "vendor";
@@ -252,11 +276,14 @@ export function canAccessWorkspaceItem(
   return item.roles.includes(role);
 }
 
-export function workspaceNavigationForRole(role: WorkspaceRole): WorkspaceNavGroup[] {
+export function workspaceNavigationForRole(
+  role: WorkspaceRole,
+): WorkspaceNavGroup[] {
   return workspaceNavigation
     .filter(
       (group) =>
-        group.roles.includes(role) || (role === "staff" && group.section === "Menu"),
+        group.roles.includes(role) ||
+        (role === "staff" && group.section === "Menu"),
     )
     .map((group) => ({
       ...group,
@@ -284,7 +311,9 @@ export function workspacePageForPath(pathname: string): WorkspaceNavItem {
 
   // Keep the earlier plural Plants URL working as an alias.
   if (cleanPath === "/workspace/plants") {
-    return workspaceItems.find((item) => item.key === "plants") ?? workspaceItems[0];
+    return (
+      workspaceItems.find((item) => item.key === "plants") ?? workspaceItems[0]
+    );
   }
 
   return (
@@ -375,7 +404,20 @@ export const demoOrders: DashboardOrder[] = [
 ];
 
 export const productionBars = [44, 62, 50, 76, 58, 87, 67, 94, 72, 60, 82, 70];
-export const productionDayLabels = ["1", "3", "5", "7", "9", "11", "13", "15", "17", "19", "21", "23"];
+export const productionDayLabels = [
+  "1",
+  "3",
+  "5",
+  "7",
+  "9",
+  "11",
+  "13",
+  "15",
+  "17",
+  "19",
+  "21",
+  "23",
+];
 
 export const plantStatuses: PlantStatus[] = [
   { name: "Pune Plant", state: "Running", tone: "good" },

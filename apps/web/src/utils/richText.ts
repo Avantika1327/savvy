@@ -3,10 +3,34 @@
  * Backend sanitization is also required; this helper protects the browser render path.
  */
 const ALLOWED_TAGS = new Set([
-  "P", "DIV", "BR", "STRONG", "B", "EM", "I", "U", "S", "UL", "OL", "LI",
-  "BLOCKQUOTE", "H2", "H3", "PRE", "CODE", "A",
+  "P",
+  "DIV",
+  "BR",
+  "STRONG",
+  "B",
+  "EM",
+  "I",
+  "U",
+  "S",
+  "UL",
+  "OL",
+  "LI",
+  "BLOCKQUOTE",
+  "H2",
+  "H3",
+  "PRE",
+  "CODE",
+  "A",
 ]);
-const DROP_WITH_CONTENT = new Set(["SCRIPT", "STYLE", "IFRAME", "OBJECT", "EMBED", "SVG", "MATH"]);
+const DROP_WITH_CONTENT = new Set([
+  "SCRIPT",
+  "STYLE",
+  "IFRAME",
+  "OBJECT",
+  "EMBED",
+  "SVG",
+  "MATH",
+]);
 
 function safeHref(value: string): string | null {
   const href = value.trim();
@@ -15,7 +39,12 @@ function safeHref(value: string): string | null {
     const parsed = new URL(href, window.location.origin);
     if (!["http:", "https:", "mailto:"].includes(parsed.protocol)) return null;
     // Only allow relative links or explicit safe URL schemes.
-    if (href.startsWith("/") || parsed.protocol === "http:" || parsed.protocol === "https:" || parsed.protocol === "mailto:") {
+    if (
+      href.startsWith("/") ||
+      parsed.protocol === "http:" ||
+      parsed.protocol === "https:" ||
+      parsed.protocol === "mailto:"
+    ) {
       return href;
     }
     return null;

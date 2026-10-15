@@ -1,53 +1,114 @@
-import { Router, type NextFunction, type Request, type Response } from 'express';
-import { MembershipRole, Prisma } from '@prisma/client';
-import { z } from 'zod';
-import sanitizeHtml from 'sanitize-html';
-import { authenticate, requireActiveTenant } from '../../middleware/auth.middleware.js';
-import { withTenantTransaction } from '../../lib/tenant-transaction.js';
+import {
+  Router,
+  type NextFunction,
+  type Request,
+  type Response,
+} from "express";
+import { MembershipRole, Prisma } from "@prisma/client";
+import { z } from "zod";
+import sanitizeHtml from "sanitize-html";
+import {
+  authenticate,
+  requireActiveTenant,
+} from "../../middleware/auth.middleware.js";
+import { withTenantTransaction } from "../../lib/tenant-transaction.js";
+import {
+  revokePendingPlantManagerInvitations,
+  sendPlantManagerInvitation,
+} from "./plant-manager-invitations.service.js";
 
 export const plantsRouter = Router();
-plantsRouter.use(authenticate('web'), requireActiveTenant);
+plantsRouter.use(authenticate("web"), requireActiveTenant);
 
-const optionalText = (max: number) => z.string().trim().max(max).nullable().optional();
-const optionalEmail = z.string().trim().email().max(254).transform((value) => value.toLowerCase()).nullable().optional();
-const coverageTypeSchema = z.enum(['LOCAL', 'PAN_INDIA']);
+const optionalText = (max: number) =>
+  z.string().trim().max(max).nullable().optional();
+const optionalEmail = z
+  .string()
+  .trim()
+  .email()
+  .max(254)
+  .transform((value) => value.toLowerCase())
+  .nullable()
+  .optional();
+const coverageTypeSchema = z.enum(["LOCAL", "PAN_INDIA"]);
 
-const sanitizePlantDetails = (value: string | null | undefined): string | null | undefined => {
-  if (value === undefined || value === null || value.trim() === '') return value ?? null;
+const sanitizePlantDetails = (
+  value: string | null | undefined,
+): string | null | undefined => {
+  if (value === undefined || value === null || value.trim() === "")
+    return value ?? null;
   return sanitizeHtml(value, {
-    allowedTags: ['p', 'div', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'ul', 'ol', 'li', 'blockquote', 'h2', 'h3', 'pre', 'code', 'a'],
-    allowedAttributes: { a: ['href', 'target', 'rel'] },
-    allowedSchemes: ['http', 'https', 'mailto'],
+    allowedTags: [
+      "p",
+      "div",
+      "br",
+      "strong",
+      "b",
+      "em",
+      "i",
+      "u",
+      "s",
+      "ul",
+      "ol",
+      "li",
+      "blockquote",
+      "h2",
+      "h3",
+      "pre",
+      "code",
+      "a",
+    ],
+    allowedAttributes: { a: ["href", "target", "rel"] },
+    allowedSchemes: ["http", "https", "mailto"],
     transformTags: {
-      a: sanitizeHtml.simpleTransform('a', { rel: 'noopener noreferrer', target: '_blank' }, true),
+      a: sanitizeHtml.simpleTransform(
+        "a",
+        { rel: "noopener noreferrer", target: "_blank" },
+        true,
+      ),
     },
   });
 };
 
-const createSchema = z.object({
-  name: z.string().trim().min(2).max(120),
-  address: optionalText(250),
-  manager: optionalText(120),
-  managerEmail: optionalEmail,
-  coverageType: coverageTypeSchema.default('LOCAL'),
-  location: optionalText(120),
-  pincode: z.string().trim().regex(/^[1-9][0-9]{5}$/).nullable().optional(),
-  details: optionalText(15000),
-}).strict();
+const createSchema = z
+  .object({
+    name: z.string().trim().min(2).max(120),
+    address: optionalText(250),
+    manager: optionalText(120),
+    managerEmail: optionalEmail,
+    coverageType: coverageTypeSchema.default("LOCAL"),
+    location: optionalText(120),
+    pincode: z
+      .string()
+      .trim()
+      .regex(/^[1-9][0-9]{5}$/)
+      .nullable()
+      .optional(),
+    details: optionalText(15000),
+  })
+  .strict();
 
-const updateSchema = z.object({
-  name: z.string().trim().min(2).max(120).optional(),
-  address: optionalText(250),
-  manager: optionalText(120),
-  managerEmail: optionalEmail,
-  coverageType: coverageTypeSchema.optional(),
-  location: optionalText(120),
-  pincode: z.string().trim().regex(/^[1-9][0-9]{5}$/).nullable().optional(),
-  details: optionalText(15000),
-}).strict().refine(
-  (input) => Object.values(input).some((value) => value !== undefined),
-  { message: 'Provide at least one field to update.' },
-);
+const updateSchema = z
+  .object({
+    name: z.string().trim().min(2).max(120).optional(),
+    address: optionalText(250),
+    manager: optionalText(120),
+    managerEmail: optionalEmail,
+    coverageType: coverageTypeSchema.optional(),
+    location: optionalText(120),
+    pincode: z
+      .string()
+      .trim()
+      .regex(/^[1-9][0-9]{5}$/)
+      .nullable()
+      .optional(),
+    details: optionalText(15000),
+  })
+  .strict()
+  .refine(
+    (input) => Object.values(input).some((value) => value !== undefined),
+    { message: "Provide at least one field to update." },
+  );
 
 const statusSchema = z.object({ isActive: z.boolean() }).strict();
 
@@ -89,8 +150,9 @@ function requirePlantManager(req: Request, res: Response, next: NextFunction) {
   if (!role || !allowedRoles.includes(role)) {
     return res.status(403).json({
       error: {
-        code: 'PLANT_WRITE_FORBIDDEN',
-        message: 'Only a tenant owner, tenant admin, or manager can change plant records.',
+        code: "PLANT_WRITE_FORBIDDEN",
+        message:
+          "Only a tenant owner, tenant admin, or manager can change plant records.",
       },
     });
   }
@@ -98,39 +160,75 @@ function requirePlantManager(req: Request, res: Response, next: NextFunction) {
   return next();
 }
 
+function requireTenantAdministrator(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  const role = req.auth?.tenantRole;
+  if (
+    role !== MembershipRole.TENANT_OWNER &&
+    role !== MembershipRole.TENANT_ADMIN
+  ) {
+    return res.status(403).json({
+      error: {
+        code: "PLANT_MANAGER_INVITE_FORBIDDEN",
+        message:
+          "Only a tenant owner or tenant admin can invite or reassign a Plant Manager.",
+      },
+    });
+  }
+  return next();
+}
+
+function isTenantAdministrator(role: MembershipRole | undefined): boolean {
+  return (
+    role === MembershipRole.TENANT_OWNER || role === MembershipRole.TENANT_ADMIN
+  );
+}
+
 function sendValidationError(res: Response, message: string) {
   return res.status(400).json({
-    error: { code: 'VALIDATION_ERROR', message },
+    error: { code: "VALIDATION_ERROR", message },
   });
 }
 
 function sendPlantNotFound(res: Response) {
   return res.status(404).json({
-    error: { code: 'PLANT_NOT_FOUND', message: 'Plant not found in this workspace.' },
+    error: {
+      code: "PLANT_NOT_FOUND",
+      message: "Plant not found in this workspace.",
+    },
   });
 }
 
 function sendDuplicateName(res: Response) {
   return res.status(409).json({
-    error: { code: 'PLANT_NAME_IN_USE', message: 'A plant with this name already exists in this workspace.' },
+    error: {
+      code: "PLANT_NAME_IN_USE",
+      message: "A plant with this name already exists in this workspace.",
+    },
   });
 }
 
 function handlePrismaError(error: unknown, res: Response, next: NextFunction) {
-  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002"
+  ) {
     return sendDuplicateName(res);
   }
   return next(error);
 }
 
 // GET /api/web/v1/plants — active and inactive (non-deleted) plants for this tenant only.
-plantsRouter.get('/', async (req, res, next) => {
+plantsRouter.get("/", async (req, res, next) => {
   const tenantId = req.auth!.tenantId!;
   try {
     const plants = await withTenantTransaction(tenantId, (tx) =>
       tx.plant.findMany({
         where: { tenantId, deletedAt: null },
-        orderBy: [{ isActive: 'desc' }, { name: 'asc' }],
+        orderBy: [{ isActive: "desc" }, { name: "asc" }],
         select: plantSelect,
       }),
     );
@@ -149,10 +247,13 @@ plantsRouter.get('/', async (req, res, next) => {
 });
 
 // POST /api/web/v1/plants — create a plant within the authenticated tenant.
-plantsRouter.post('/', requirePlantManager, async (req, res, next) => {
+plantsRouter.post("/", requirePlantManager, async (req, res, next) => {
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) {
-    return sendValidationError(res, parsed.error.issues[0]?.message ?? 'Invalid plant details.');
+    return sendValidationError(
+      res,
+      parsed.error.issues[0]?.message ?? "Invalid plant details.",
+    );
   }
 
   const tenantId = req.auth!.tenantId!;
@@ -165,7 +266,10 @@ plantsRouter.post('/', requirePlantManager, async (req, res, next) => {
         where: { tenantId, normalizedName },
         select: { id: true },
       });
-      if (duplicate) throw Object.assign(new Error('PLANT_NAME_IN_USE'), { code: 'PLANT_NAME_IN_USE' });
+      if (duplicate)
+        throw Object.assign(new Error("PLANT_NAME_IN_USE"), {
+          code: "PLANT_NAME_IN_USE",
+        });
 
       const created = await tx.plant.create({
         data: {
@@ -180,36 +284,108 @@ plantsRouter.post('/', requirePlantManager, async (req, res, next) => {
         select: plantSelect,
       });
 
+      await tx.$queryRaw`SELECT set_config('app.platform_admin', 'true', true)`;
       await tx.auditLog.create({
         data: {
           actorUserId: req.auth!.userId,
           tenantId,
-          action: 'PLANT_CREATED',
-          entityType: 'Plant',
+          action: "PLANT_CREATED",
+          entityType: "Plant",
           entityId: String(created.id),
           ipAddress: req.ip,
-          userAgent: req.get('user-agent')?.slice(0, 500),
+          userAgent: req.get("user-agent")?.slice(0, 500),
           metadata: { name: created.name },
         },
       });
       return created;
     });
 
-    return res.status(201).json({ data: plant });
+    let managerInvitation: unknown;
+    if (plant.managerEmail) {
+      if (isTenantAdministrator(req.auth!.tenantRole)) {
+        managerInvitation = await sendPlantManagerInvitation({
+          tenantId,
+          plantId: plant.id,
+          plantName: plant.name,
+          managerName: plant.manager,
+          managerEmail: plant.managerEmail,
+          createdByUserId: req.auth!.userId,
+        });
+      } else {
+        managerInvitation = {
+          sent: false,
+          code: "TENANT_ADMIN_REQUIRED",
+          message:
+            "Plant was saved, but only a tenant owner or admin can send the manager invitation.",
+        };
+      }
+    }
+
+    return res.status(201).json({
+      data: plant,
+      ...(managerInvitation === undefined ? {} : { managerInvitation }),
+    });
   } catch (error: any) {
-    if (error?.code === 'PLANT_NAME_IN_USE') return sendDuplicateName(res);
+    if (error?.code === "PLANT_NAME_IN_USE") return sendDuplicateName(res);
     return handlePrismaError(error, res, next);
   }
 });
 
+// POST /api/web/v1/plants/:plantId/manager-invitation — send or resend the invite.
+plantsRouter.post(
+  "/:plantId/manager-invitation",
+  requireTenantAdministrator,
+  async (req, res, next) => {
+    const id = parsePlantId(req.params.plantId);
+    if (!id)
+      return sendValidationError(res, "Plant ID must be a positive integer.");
+    const tenantId = req.auth!.tenantId!;
+
+    try {
+      const plant = await withTenantTransaction(tenantId, (tx) =>
+        tx.plant.findFirst({
+          where: { id, tenantId, deletedAt: null },
+          select: { id: true, name: true, manager: true, managerEmail: true },
+        }),
+      );
+      if (!plant) return sendPlantNotFound(res);
+      if (!plant.managerEmail) {
+        return res.status(400).json({
+          error: {
+            code: "MANAGER_EMAIL_REQUIRED",
+            message:
+              "Add a valid manager email to this plant before sending an invitation.",
+          },
+        });
+      }
+
+      const result = await sendPlantManagerInvitation({
+        tenantId,
+        plantId: plant.id,
+        plantName: plant.name,
+        managerName: plant.manager,
+        managerEmail: plant.managerEmail,
+        createdByUserId: req.auth!.userId,
+      });
+      return res.status(result.sent ? 202 : 503).json({ data: result });
+    } catch (error) {
+      return next(error);
+    }
+  },
+);
+
 // PATCH /api/web/v1/plants/:plantId — edit plant fields; tenant ownership is enforced in the query/RLS context.
-plantsRouter.patch('/:plantId', requirePlantManager, async (req, res, next) => {
+plantsRouter.patch("/:plantId", requirePlantManager, async (req, res, next) => {
   const id = parsePlantId(req.params.plantId);
-  if (!id) return sendValidationError(res, 'Plant ID must be a positive integer.');
+  if (!id)
+    return sendValidationError(res, "Plant ID must be a positive integer.");
 
   const parsed = updateSchema.safeParse(req.body);
   if (!parsed.success) {
-    return sendValidationError(res, parsed.error.issues[0]?.message ?? 'Invalid plant details.');
+    return sendValidationError(
+      res,
+      parsed.error.issues[0]?.message ?? "Invalid plant details.",
+    );
   }
 
   const tenantId = req.auth!.tenantId!;
@@ -219,100 +395,158 @@ plantsRouter.patch('/:plantId', requirePlantManager, async (req, res, next) => {
     const plant = await withTenantTransaction(tenantId, async (tx) => {
       const current = await tx.plant.findFirst({
         where: { id, tenantId },
-        select: { id: true, deletedAt: true },
+        select: {
+          id: true,
+          deletedAt: true,
+          manager: true,
+          managerEmail: true,
+        },
       });
-      if (!current) throw Object.assign(new Error('PLANT_NOT_FOUND'), { code: 'PLANT_NOT_FOUND' });
-      if (current.deletedAt) throw Object.assign(new Error('PLANT_DELETED'), { code: 'PLANT_DELETED' });
+      if (!current)
+        throw Object.assign(new Error("PLANT_NOT_FOUND"), {
+          code: "PLANT_NOT_FOUND",
+        });
+      if (current.deletedAt)
+        throw Object.assign(new Error("PLANT_DELETED"), {
+          code: "PLANT_DELETED",
+        });
 
       const data: Prisma.PlantUpdateInput = {};
+      const managerEmailChanged =
+        input.managerEmail !== undefined &&
+        input.managerEmail !== current.managerEmail;
+      const managerInvitationIdentityChanged =
+        managerEmailChanged ||
+        (input.manager !== undefined && input.manager !== current.manager);
+      if (managerEmailChanged) data.managerId = null;
       if (input.name !== undefined) {
         data.name = input.name.trim();
         data.normalizedName = normalizePlantName(input.name);
       }
       if (input.address !== undefined) data.address = input.address;
       if (input.manager !== undefined) data.manager = input.manager;
-      if (input.managerEmail !== undefined) data.managerEmail = input.managerEmail;
-      if (input.coverageType !== undefined) data.coverageType = input.coverageType;
+      if (input.managerEmail !== undefined)
+        data.managerEmail = input.managerEmail;
+      if (input.coverageType !== undefined)
+        data.coverageType = input.coverageType;
       if (input.location !== undefined) data.location = input.location;
       if (input.pincode !== undefined) data.pincode = input.pincode;
-      if (input.details !== undefined) data.details = sanitizePlantDetails(input.details);
+      if (input.details !== undefined)
+        data.details = sanitizePlantDetails(input.details);
 
       if (input.name !== undefined) {
         const duplicate = await tx.plant.findFirst({
-          where: { tenantId, normalizedName: normalizePlantName(input.name), id: { not: id } },
+          where: {
+            tenantId,
+            normalizedName: normalizePlantName(input.name),
+            id: { not: id },
+          },
           select: { id: true },
         });
-        if (duplicate) throw Object.assign(new Error('PLANT_NAME_IN_USE'), { code: 'PLANT_NAME_IN_USE' });
+        if (duplicate)
+          throw Object.assign(new Error("PLANT_NAME_IN_USE"), {
+            code: "PLANT_NAME_IN_USE",
+          });
       }
 
-      const updated = await tx.plant.update({ where: { id }, data, select: plantSelect });
+      const updated = await tx.plant.update({
+        where: { id },
+        data,
+        select: plantSelect,
+      });
+      await tx.$queryRaw`SELECT set_config('app.platform_admin', 'true', true)`;
       await tx.auditLog.create({
         data: {
           actorUserId: req.auth!.userId,
           tenantId,
-          action: 'PLANT_UPDATED',
-          entityType: 'Plant',
+          action: "PLANT_UPDATED",
+          entityType: "Plant",
           entityId: String(updated.id),
           ipAddress: req.ip,
-          userAgent: req.get('user-agent')?.slice(0, 500),
+          userAgent: req.get("user-agent")?.slice(0, 500),
           metadata: { updatedFields: Object.keys(input) },
         },
       });
-      return updated;
+      return { updated, managerInvitationIdentityChanged };
     });
 
-    return res.json({ data: plant });
+    if (plant.managerInvitationIdentityChanged)
+      await revokePendingPlantManagerInvitations(tenantId, id);
+    return res.json({ data: plant.updated });
   } catch (error: any) {
-    if (error?.code === 'PLANT_NAME_IN_USE') return sendDuplicateName(res);
-    if (error?.code === 'PLANT_NOT_FOUND') return sendPlantNotFound(res);
-    if (error?.code === 'PLANT_DELETED') {
-      return res.status(409).json({ error: { code: error.code, message: 'A deleted plant cannot be edited.' } });
+    if (error?.code === "PLANT_NAME_IN_USE") return sendDuplicateName(res);
+    if (error?.code === "PLANT_NOT_FOUND") return sendPlantNotFound(res);
+    if (error?.code === "PLANT_DELETED") {
+      return res
+        .status(409)
+        .json({
+          error: {
+            code: error.code,
+            message: "A deleted plant cannot be edited.",
+          },
+        });
     }
-    if (error?.code === 'P2025') return sendPlantNotFound(res);
+    if (error?.code === "P2025") return sendPlantNotFound(res);
     return handlePrismaError(error, res, next);
   }
 });
 
 // PATCH /api/web/v1/plants/:plantId/status — activate/deactivate without deleting data.
-plantsRouter.patch('/:plantId/status', requirePlantManager, async (req, res, next) => {
-  const id = parsePlantId(req.params.plantId);
-  if (!id) return sendValidationError(res, 'Plant ID must be a positive integer.');
+plantsRouter.patch(
+  "/:plantId/status",
+  requirePlantManager,
+  async (req, res, next) => {
+    const id = parsePlantId(req.params.plantId);
+    if (!id)
+      return sendValidationError(res, "Plant ID must be a positive integer.");
 
-  const parsed = statusSchema.safeParse(req.body);
-  if (!parsed.success) return sendValidationError(res, 'isActive must be a boolean.');
+    const parsed = statusSchema.safeParse(req.body);
+    if (!parsed.success)
+      return sendValidationError(res, "isActive must be a boolean.");
 
-  const tenantId = req.auth!.tenantId!;
-  try {
-    const plant = await withTenantTransaction(tenantId, async (tx) => {
-      const current = await tx.plant.findFirst({
-        where: { id, tenantId, deletedAt: null },
-        select: { id: true, isActive: true },
+    const tenantId = req.auth!.tenantId!;
+    try {
+      const plant = await withTenantTransaction(tenantId, async (tx) => {
+        const current = await tx.plant.findFirst({
+          where: { id, tenantId, deletedAt: null },
+          select: { id: true, isActive: true },
+        });
+        if (!current)
+          throw Object.assign(new Error("PLANT_NOT_FOUND"), {
+            code: "PLANT_NOT_FOUND",
+          });
+
+        const updated = await tx.plant.update({
+          where: { id },
+          data: { isActive: parsed.data.isActive },
+          select: plantSelect,
+        });
+        await tx.$queryRaw`SELECT set_config('app.platform_admin', 'true', true)`;
+        await tx.auditLog.create({
+          data: {
+            actorUserId: req.auth!.userId,
+            tenantId,
+            action: parsed.data.isActive
+              ? "PLANT_ACTIVATED"
+              : "PLANT_DEACTIVATED",
+            entityType: "Plant",
+            entityId: String(updated.id),
+            ipAddress: req.ip,
+            userAgent: req.get("user-agent")?.slice(0, 500),
+            metadata: {
+              previousIsActive: current.isActive,
+              isActive: updated.isActive,
+            },
+          },
+        });
+        return updated;
       });
-      if (!current) throw Object.assign(new Error('PLANT_NOT_FOUND'), { code: 'PLANT_NOT_FOUND' });
 
-      const updated = await tx.plant.update({
-        where: { id },
-        data: { isActive: parsed.data.isActive },
-        select: plantSelect,
-      });
-      await tx.auditLog.create({
-        data: {
-          actorUserId: req.auth!.userId,
-          tenantId,
-          action: parsed.data.isActive ? 'PLANT_ACTIVATED' : 'PLANT_DEACTIVATED',
-          entityType: 'Plant',
-          entityId: String(updated.id),
-          ipAddress: req.ip,
-          userAgent: req.get('user-agent')?.slice(0, 500),
-          metadata: { previousIsActive: current.isActive, isActive: updated.isActive },
-        },
-      });
-      return updated;
-    });
-
-    return res.json({ data: plant });
-  } catch (error: any) {
-    if (error?.code === 'PLANT_NOT_FOUND' || error?.code === 'P2025') return sendPlantNotFound(res);
-    return next(error);
-  }
-});
+      return res.json({ data: plant });
+    } catch (error: any) {
+      if (error?.code === "PLANT_NOT_FOUND" || error?.code === "P2025")
+        return sendPlantNotFound(res);
+      return next(error);
+    }
+  },
+);

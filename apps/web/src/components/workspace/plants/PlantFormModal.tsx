@@ -1,6 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { X } from "lucide-react";
-import type { Plant, PlantInput, PlantCoverageType } from "../../../types/plant";
+import type {
+  Plant,
+  PlantInput,
+  PlantCoverageType,
+} from "../../../types/plant";
 import RichTextEditor from "./RichTextEditor";
 
 export type PlantFormValues = {
@@ -71,7 +75,9 @@ export default function PlantFormModal({
   onClose,
   onSubmit,
 }: Props) {
-  const [values, setValues] = useState<PlantFormValues>(() => getInitialValues(plant));
+  const [values, setValues] = useState<PlantFormValues>(() =>
+    getInitialValues(plant),
+  );
   const [validationError, setValidationError] = useState("");
 
   useEffect(() => {
@@ -127,7 +133,9 @@ export default function PlantFormModal({
         <header className="plant-modal-heading">
           <div>
             <span className="plant-eyebrow">PLANT MANAGEMENT</span>
-            <h2 id="plant-modal-title">{plant ? "Edit Plants" : "Create Plants"}</h2>
+            <h2 id="plant-modal-title">
+              {plant ? "Edit Plants" : "Create Plants"}
+            </h2>
             <p>
               {plant
                 ? "Update plant information and coverage."
@@ -250,7 +258,12 @@ export default function PlantFormModal({
                 autoComplete="postal-code"
                 maxLength={6}
                 value={values.pincode}
-                onChange={(event) => update("pincode", event.target.value.replace(/\D/g, "").slice(0, 6))}
+                onChange={(event) =>
+                  update(
+                    "pincode",
+                    event.target.value.replace(/\D/g, "").slice(0, 6),
+                  )
+                }
                 placeholder="Enter the pin code"
                 disabled={saving}
               />
@@ -264,7 +277,10 @@ export default function PlantFormModal({
                 disabled={saving}
                 label="Plant details"
               />
-              <small className="plant-field-help">Basic formatting is supported. Unsafe HTML is removed before display and must also be sanitized by the API.</small>
+              <small className="plant-field-help">
+                Basic formatting is supported. Unsafe HTML is removed before
+                display and must also be sanitized by the API.
+              </small>
             </div>
           </div>
 
@@ -277,7 +293,11 @@ export default function PlantFormModal({
             >
               Cancel
             </button>
-            <button className="plant-btn plant-btn-primary" type="submit" disabled={saving}>
+            <button
+              className="plant-btn plant-btn-primary"
+              type="submit"
+              disabled={saving}
+            >
               {saving ? "Saving…" : plant ? "Save" : "Save"}
             </button>
           </footer>

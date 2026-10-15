@@ -1,22 +1,40 @@
 import { useCallback, useState } from "react";
-import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import {
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 import type { Session } from "./authTypes";
-import { clearStoredSession, readStoredSession, storeSession } from "./auth/session";
+import {
+  clearStoredSession,
+  readStoredSession,
+  storeSession,
+} from "./auth/session";
 import Login from "./Login";
 import PlatformTenants from "./PlatformTenants";
 import TenantDashboard from "./pages/TenantDashboard";
 import PlantsPage from "./pages/PlantsPage";
 import WorkspaceDashboardPage from "./pages/WorkspaceDashboardPage";
 import WorkspaceModulePage from "./pages/WorkspaceModulePage";
-import { canAccessWorkspaceItem, resolveWorkspaceRole, workspaceItems } from "./data/dashboardData";
+import AcceptPlantManagerInvitation from "./pages/AcceptPlantManagerInvitation";
+import {
+  canAccessWorkspaceItem,
+  resolveWorkspaceRole,
+  workspaceItems,
+} from "./data/dashboardData";
 
 export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const redirectFrom = (location.state as { from?: unknown } | null)?.from;
-  const [session, setSession] = useState<Session | null>(() => readStoredSession());
+  const [session, setSession] = useState<Session | null>(() =>
+    readStoredSession(),
+  );
 
-  const handleLogin = useCallback((value: Session) => {
+  const handleLogin = useCallback(
+    (value: Session) => {
       // Persist only safe display metadata; never persist access tokens.
       const safeSession = storeSession(value);
       if (!safeSession) {
@@ -34,32 +52,44 @@ export default function App() {
           : null;
       const requestedWorkspacePath =
         typeof redirectFrom === "string" &&
-        (redirectFrom === "/workspace" || redirectFrom.startsWith("/workspace/"))
+        (redirectFrom === "/workspace" ||
+          redirectFrom.startsWith("/workspace/"))
           ? redirectFrom
           : null;
-      const destination = safeSession.user.platformRole === "SUPER_ADMIN"
-          ? requestedPlatformPath ?? "/platform-admin"
-          : requestedWorkspacePath ?? "/workspace";
+
+      const destination =
+        safeSession.user.platformRole === "SUPER_ADMIN"
+          ? (requestedPlatformPath ?? "/platform-admin")
+          : (requestedWorkspacePath ?? "/workspace");
 
       navigate(destination, { replace: true });
-    }, [navigate, redirectFrom]);
+    },
+    [navigate, redirectFrom],
+  );
 
   const logout = useCallback(() => {
     const isPlatformAdmin = session?.user.platformRole === "SUPER_ADMIN";
     const route = isPlatformAdmin
       ? "/api/web/v1/platform-auth/logout"
       : "/api/web/v1/auth/logout";
-    const api = (import.meta.env.VITE_API_URL ?? "http://localhost:4000").replace(/\/$/, "");
+    const api = (
+      import.meta.env.VITE_API_URL ?? "http://localhost:4000"
+    ).replace(/\/+$/, "");
 
     void (async () => {
       try {
-        await fetch(`${api}${route}`, { method: "POST", credentials: "include" });
+        await fetch(`${api}${route}`, {
+          method: "POST",
+          credentials: "include",
+        });
       } catch {
         // Always clear local state even when the API is temporarily unavailable.
       } finally {
         clearStoredSession();
         setSession(null);
-        navigate(isPlatformAdmin ? "/platform-admin/login" : "/login", { replace: true });
+        navigate(isPlatformAdmin ? "/platform-admin/login" : "/login", {
+          replace: true,
+        });
       }
     })();
   }, [navigate, session?.user.platformRole]);
@@ -67,15 +97,31 @@ export default function App() {
   if (!session) {
     return (
       <Routes>
-        <Route path="/platform-admin/login" element={<Login onLogin={handleLogin} />} />
+        <Route
+          path="/platform-admin/login"
+          element={<Login onLogin={handleLogin} />}
+        />
         <Route path="/login" element={<Login onLogin={handleLogin} />} />
+        {/* Public route: invite acceptance must work before the manager has a session. */}
+        <Route
+          path="/accept-plant-invitation"
+          element={<AcceptPlantManagerInvitation />}
+        />
         <Route
           path="/platform-admin/*"
-          element={<Navigate to="/platform-admin/login" replace state={{ from: location.pathname }} />}
+          element={
+            <Navigate
+              to="/platform-admin/login"
+              replace
+              state={{ from: location.pathname }}
+            />
+          }
         />
         <Route
           path="/workspace/*"
-          element={<Navigate to="/login" replace state={{ from: location.pathname }} />}
+          element={
+            <Navigate to="/login" replace state={{ from: location.pathname }} />
+          }
         />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
@@ -85,15 +131,31 @@ export default function App() {
   if (session.user.platformRole === "SUPER_ADMIN") {
     return (
       <Routes>
-        <Route path="/login" element={<Navigate to="/platform-admin" replace />} />
-        <Route path="/platform-admin/login" element={<Navigate to="/platform-admin" replace />} />
-        <Route path="/platform-admin/*" element={<PlatformTenants session={session} onLogout={logout} />} />
+        <Route
+          path="/login"
+          element={<Navigate to="/platform-admin" replace />}
+        />
+        <Route
+          path="/platform-admin/login"
+          element={<Navigate to="/platform-admin" replace />}
+        />
+        <Route
+          path="/platform-admin/*"
+          element={<PlatformTenants session={session} onLogout={logout} />}
+        />
+        <Route
+          path="/accept-plant-invitation"
+          element={<AcceptPlantManagerInvitation />}
+        />
         <Route path="*" element={<Navigate to="/platform-admin" replace />} />
       </Routes>
     );
   }
 
-  const workspaceRole = resolveWorkspaceRole(session.user.role, session.user.tenantRole);
+  const workspaceRole = resolveWorkspaceRole(
+    session.user.role,
+    session.user.tenantRole,
+  );
   const normalizedTenantRole = (session.user.tenantRole ?? "")
     .trim()
     .toUpperCase()
@@ -106,7 +168,14 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Navigate to="/workspace" replace />} />
-      <Route path="/platform-admin/*" element={<Navigate to="/workspace" replace />} />
+      <Route
+        path="/platform-admin/*"
+        element={<Navigate to="/workspace" replace />}
+      />
+      <Route
+        path="/accept-plant-invitation"
+        element={<AcceptPlantManagerInvitation />}
+      />
       <Route
         path="/workspace"
         element={
@@ -133,7 +202,7 @@ export default function App() {
 
             return <Route key={item.key} path={item.route} element={element} />;
           })}
-        {/* Backward-compatible alias for the earlier plural Plants URL. */}
+        {/* Backward-compatible alias for the earlier /workspace/plants URL. */}
         <Route
           path="plants"
           element={

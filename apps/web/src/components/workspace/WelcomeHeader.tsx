@@ -17,14 +17,22 @@ export default function WelcomeHeader({ active, onCreateOrder }: Props) {
   return (
     <div className="welcome-row">
       <div>
-        <div className="eyebrow"><span className="live-dot" /> {today.toUpperCase()}</div>
+        <div className="eyebrow">
+          <span className="live-dot" /> {today.toUpperCase()}
+        </div>
         <h1>{active === "Dashboards" ? "Good morning, Admin 👋" : active}</h1>
         <p className="subhead">
-          Dashboard preview — figures are sample data until operational APIs are connected.
+          Dashboard preview — figures are sample data until operational APIs are
+          connected.
         </p>
       </div>
       <div className="welcome-actions">
-        <button className="secondary-btn" type="button" disabled title="Date filtering is not connected yet">
+        <button
+          className="secondary-btn"
+          type="button"
+          disabled
+          title="Date filtering is not connected yet"
+        >
           <CalendarDays size={16} /> Last 30 days <ChevronDown size={15} />
         </button>
         <button className="primary-btn" type="button" onClick={onCreateOrder}>

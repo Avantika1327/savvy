@@ -1,18 +1,15 @@
 import type { LucideIcon } from "lucide-react";
 
 export type TenantStatus =
-  | "TRIAL"
-  | "ACTIVE"
-  | "INACTIVE"
-  | "PAYMENT_PENDING"
-  | "SUSPENDED"
-  | "EXPIRED";
+  "TRIAL" | "ACTIVE" | "INACTIVE" | "PAYMENT_PENDING" | "SUSPENDED" | "EXPIRED";
 
 export type PlatformView = "overview" | "tenants" | "payments";
 
-export type TenantModule = "PLANTS" | "DRIVERS" | "CUSTOMERS" | "VENDORS" | "DISTRIBUTORS";
+export type TenantModule =
+  "PLANTS" | "DRIVERS" | "CUSTOMERS" | "VENDORS" | "DISTRIBUTORS";
 export type ConfigurableMembershipRole = "TENANT_ADMIN" | "MANAGER" | "STAFF";
-export type PermissionAction = "canView" | "canCreate" | "canEdit" | "canDelete";
+export type PermissionAction =
+  "canView" | "canCreate" | "canEdit" | "canDelete";
 
 export type RolePermissionSetting = {
   role: ConfigurableMembershipRole;

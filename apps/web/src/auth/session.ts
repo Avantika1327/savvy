@@ -33,7 +33,9 @@ export function normalizeSession(value: unknown): Session | null {
       email: user.email,
       platformRole: platformRole as PlatformRole,
       ...(typeof user.role === "string" ? { role: user.role } : {}),
-      ...(typeof user.tenantRole === "string" ? { tenantRole: user.tenantRole } : {}),
+      ...(typeof user.tenantRole === "string"
+        ? { tenantRole: user.tenantRole }
+        : {}),
     },
   };
 

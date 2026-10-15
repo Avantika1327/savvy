@@ -1,15 +1,15 @@
-import type { NextFunction, Request, Response } from 'express';
-import { MembershipRole, TenantModule } from '@prisma/client';
-import { prisma } from '../lib/prisma.js';
+import type { NextFunction, Request, Response } from "express";
+import { MembershipRole, TenantModule } from "@prisma/client";
+import { prisma } from "../lib/prisma.js";
 
-export type TenantPermissionAction = 'VIEW' | 'CREATE' | 'EDIT' | 'DELETE';
-type PermissionField = 'canView' | 'canCreate' | 'canEdit' | 'canDelete';
+export type TenantPermissionAction = "VIEW" | "CREATE" | "EDIT" | "DELETE";
+type PermissionField = "canView" | "canCreate" | "canEdit" | "canDelete";
 
 const permissionField: Record<TenantPermissionAction, PermissionField> = {
-  VIEW: 'canView',
-  CREATE: 'canCreate',
-  EDIT: 'canEdit',
-  DELETE: 'canDelete',
+  VIEW: "canView",
+  CREATE: "canCreate",
+  EDIT: "canEdit",
+  DELETE: "canDelete",
 };
 
 /**
@@ -20,13 +20,19 @@ const permissionField: Record<TenantPermissionAction, PermissionField> = {
  * Use after authenticate('web') and requireActiveTenant(). Never rely on the
  * frontend hiding a menu item to enforce access control.
  */
-export function requireTenantPermission(module: TenantModule, action: TenantPermissionAction) {
+export function requireTenantPermission(
+  module: TenantModule,
+  action: TenantPermissionAction,
+) {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const auth = req.auth;
       if (!auth?.tenantId || !auth.tenantRole) {
         return res.status(403).json({
-          error: { code: 'TENANT_CONTEXT_REQUIRED', message: 'An active tenant membership is required.' },
+          error: {
+            code: "TENANT_CONTEXT_REQUIRED",
+            message: "An active tenant membership is required.",
+          },
         });
       }
 
@@ -37,7 +43,10 @@ export function requireTenantPermission(module: TenantModule, action: TenantPerm
 
       if (!moduleAccess?.isEnabled) {
         return res.status(403).json({
-          error: { code: 'TENANT_MODULE_DISABLED', message: 'This module is not enabled for your workspace.' },
+          error: {
+            code: "TENANT_MODULE_DISABLED",
+            message: "This module is not enabled for your workspace.",
+          },
         });
       }
 
@@ -52,13 +61,18 @@ export function requireTenantPermission(module: TenantModule, action: TenantPerm
             module,
           },
         },
-        select: { canView: true, canCreate: true, canEdit: true, canDelete: true },
+        select: {
+          canView: true,
+          canCreate: true,
+          canEdit: true,
+          canDelete: true,
+        },
       });
 
       if (!permission || !permission[permissionField[action]]) {
         return res.status(403).json({
           error: {
-            code: 'TENANT_PERMISSION_DENIED',
+            code: "TENANT_PERMISSION_DENIED",
             message: `Your workspace role does not allow ${action.toLowerCase()} access to this module.`,
           },
         });

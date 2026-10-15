@@ -5,7 +5,11 @@ import OperationsChart from "../components/workspace/OperationsChart";
 import PlantPerformanceCard from "../components/workspace/PlantPerformanceCard";
 import RecentOrdersCard from "../components/workspace/RecentOrdersCard";
 import WelcomeHeader from "../components/workspace/WelcomeHeader";
-import { dashboardStats, demoOrders, workspaceUrl } from "../data/dashboardData";
+import {
+  dashboardStats,
+  demoOrders,
+  workspaceUrl,
+} from "../data/dashboardData";
 import type { WorkspacePage } from "../types/dashboard";
 
 export default function WorkspaceDashboardPage() {
@@ -15,8 +19,13 @@ export default function WorkspaceDashboardPage() {
     const query = search.trim().toLowerCase();
     if (!query) return demoOrders;
     return demoOrders.filter((order) =>
-      [order.id, order.customer, order.plant, order.quantity, order.status]
-        .some((field) => field.toLowerCase().includes(query)),
+      [
+        order.id,
+        order.customer,
+        order.plant,
+        order.quantity,
+        order.status,
+      ].some((field) => field.toLowerCase().includes(query)),
     );
   }, [search]);
 
@@ -24,9 +33,14 @@ export default function WorkspaceDashboardPage() {
 
   return (
     <>
-      <WelcomeHeader active="Dashboards" onCreateOrder={() => openPage("Orders")} />
+      <WelcomeHeader
+        active="Dashboards"
+        onCreateOrder={() => openPage("Orders")}
+      />
       <div className="stat-grid">
-        {dashboardStats.map((stat) => <DashboardStatCard key={stat.label} stat={stat} />)}
+        {dashboardStats.map((stat) => (
+          <DashboardStatCard key={stat.label} stat={stat} />
+        ))}
       </div>
       <div className="section-grid">
         <OperationsChart />
@@ -40,7 +54,9 @@ export default function WorkspaceDashboardPage() {
       />
       <footer>
         © {new Date().getFullYear()} Savvy Operations
-        <span>Built for smoother operations <span className="footer-heart">✦</span></span>
+        <span>
+          Built for smoother operations <span className="footer-heart">✦</span>
+        </span>
       </footer>
     </>
   );

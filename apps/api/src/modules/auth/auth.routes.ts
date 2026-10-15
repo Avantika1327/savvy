@@ -6,6 +6,7 @@ import {
   loginPlatformAdmin,
   loginTenantUser,
 } from "./auth.service.js";
+import { plantManagerInvitationPublicRouter } from "../plants/plant-manager-invitations.public.routes.js";
 
 export const platformAuthRouter = Router();
 export const webAuthRouter = Router();
@@ -24,6 +25,11 @@ const loginLimiter = rateLimit({
 });
 platformAuthRouter.use(loginLimiter);
 webAuthRouter.use(loginLimiter);
+// Public token-based accept flow; the unguessable invitation token authorizes this limited operation.
+webAuthRouter.use(
+  "/plant-manager-invitations",
+  plantManagerInvitationPublicRouter,
+);
 appAuthRouter.use(loginLimiter);
 const cookieOptions = {
   httpOnly: true,
@@ -83,12 +89,14 @@ platformAuthRouter.post("/logout", (_req, res) => {
 platformAuthRouter.post("/login", async (req, res, next) => {
   const parsed = credentials.safeParse(req.body);
   if (!parsed.success)
-    return res.status(400).json({
-      error: {
-        code: "VALIDATION_ERROR",
-        message: "Enter a valid email and password.",
-      },
-    });
+    return res
+      .status(400)
+      .json({
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Enter a valid email and password.",
+        },
+      });
   try {
     const result = await loginPlatformAdmin(
       parsed.data.email,
@@ -112,12 +120,14 @@ webAuthRouter.post("/logout", (_req, res) => {
 webAuthRouter.post("/login", async (req, res, next) => {
   const parsed = tenantCredentials.safeParse(req.body);
   if (!parsed.success)
-    return res.status(400).json({
-      error: {
-        code: "VALIDATION_ERROR",
-        message: "Enter tenant slug, email and password.",
-      },
-    });
+    return res
+      .status(400)
+      .json({
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Enter tenant slug, email and password.",
+        },
+      });
   try {
     const result = await loginTenantUser({ ...parsed.data, surface: "web" });
     issueWebCookie(res, result.accessToken);
@@ -136,12 +146,14 @@ webAuthRouter.post("/login", async (req, res, next) => {
 appAuthRouter.post("/login", async (req, res, next) => {
   const parsed = tenantCredentials.safeParse(req.body);
   if (!parsed.success)
-    return res.status(400).json({
-      error: {
-        code: "VALIDATION_ERROR",
-        message: "Enter tenant slug, email and password.",
-      },
-    });
+    return res
+      .status(400)
+      .json({
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Enter tenant slug, email and password.",
+        },
+      });
   try {
     return res.json(await loginTenantUser({ ...parsed.data, surface: "app" }));
   } catch (e) {

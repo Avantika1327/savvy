@@ -27,13 +27,18 @@ export default function PageSearchBar({
           aria-label={placeholder}
         />
         {value && (
-          <button type="button" onClick={() => onChange("")} aria-label="Clear search">
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            aria-label="Clear search"
+          >
             <X size={15} />
           </button>
         )}
       </label>
       <span className="page-result-count">
-        {resultCount} {resultCount === 1 ? resultLabel.replace(/s$/, "") : resultLabel}
+        {resultCount}{" "}
+        {resultCount === 1 ? resultLabel.replace(/s$/, "") : resultLabel}
       </span>
     </div>
   );

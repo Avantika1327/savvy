@@ -18,10 +18,17 @@ export default function WorkspaceTopbar({
 }: Props) {
   return (
     <header className="topbar">
-      <button className="icon-btn mobile-menu" type="button" onClick={onToggleMobile} aria-label="Toggle navigation menu">
+      <button
+        className="icon-btn mobile-menu"
+        type="button"
+        onClick={onToggleMobile}
+        aria-label="Toggle navigation menu"
+      >
         <Menu />
       </button>
-      <div className="crumb">Workspace <span>/</span> <b>{active}</b></div>
+      <div className="crumb">
+        Workspace <span>/</span> <b>{active}</b>
+      </div>
       <div className="top-actions">
         {showSearch && (
           <label className="search global-search">
@@ -34,10 +41,18 @@ export default function WorkspaceTopbar({
             />
           </label>
         )}
-        <button className="icon-btn notification" type="button" aria-label="Notifications" title="Notifications">
-          <Bell size={19} /><i />
+        <button
+          className="icon-btn notification"
+          type="button"
+          aria-label="Notifications"
+          title="Notifications"
+        >
+          <Bell size={19} />
+          <i />
         </button>
-        <div className="top-avatar" aria-hidden="true">SW</div>
+        <div className="top-avatar" aria-hidden="true">
+          SW
+        </div>
       </div>
     </header>
   );
