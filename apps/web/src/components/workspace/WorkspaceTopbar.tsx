@@ -6,9 +6,16 @@ type Props = {
   searchValue: string;
   onSearchChange: (value: string) => void;
   onToggleMobile: () => void;
+  showSearch?: boolean;
 };
 
-export default function WorkspaceTopbar({ active, searchValue, onSearchChange, onToggleMobile }: Props) {
+export default function WorkspaceTopbar({
+  active,
+  searchValue,
+  onSearchChange,
+  onToggleMobile,
+  showSearch = true,
+}: Props) {
   return (
     <header className="topbar">
       <button className="icon-btn mobile-menu" type="button" onClick={onToggleMobile} aria-label="Toggle navigation menu">
@@ -16,15 +23,17 @@ export default function WorkspaceTopbar({ active, searchValue, onSearchChange, o
       </button>
       <div className="crumb">Workspace <span>/</span> <b>{active}</b></div>
       <div className="top-actions">
-        <label className="search global-search">
-          <Search size={17} />
-          <input
-            value={searchValue}
-            onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="Search recent orders…"
-            aria-label="Search recent orders"
-          />
-        </label>
+        {showSearch && (
+          <label className="search global-search">
+            <Search size={17} />
+            <input
+              value={searchValue}
+              onChange={(event) => onSearchChange(event.target.value)}
+              placeholder="Search recent orders…"
+              aria-label="Search recent orders"
+            />
+          </label>
+        )}
         <button className="icon-btn notification" type="button" aria-label="Notifications" title="Notifications">
           <Bell size={19} /><i />
         </button>

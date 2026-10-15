@@ -24,13 +24,18 @@ export default function App() {
     setSession(safeSession);
     const requestedPlatformPath =
       typeof redirectFrom === "string" &&
-        redirectFrom.startsWith("/platform-admin/") &&
-        redirectFrom !== "/platform-admin/login"
+      redirectFrom.startsWith("/platform-admin/") &&
+      redirectFrom !== "/platform-admin/login"
+        ? redirectFrom
+        : null;
+    const requestedWorkspacePath =
+      typeof redirectFrom === "string" &&
+      redirectFrom.startsWith("/workspace/")
         ? redirectFrom
         : null;
     const destination = safeSession.user.platformRole === "SUPER_ADMIN"
       ? requestedPlatformPath ?? "/platform-admin"
-      : "/workspace";
+      : requestedWorkspacePath ?? "/workspace";
 
     navigate(destination, { replace: true });
   }, [navigate, redirectFrom]);
@@ -64,6 +69,10 @@ export default function App() {
           path="/platform-admin/*"
           element={<Navigate to="/platform-admin/login" replace state={{ from: location.pathname }} />}
         />
+        <Route
+          path="/workspace/*"
+          element={<Navigate to="/login" replace state={{ from: location.pathname }} />}
+        />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
@@ -85,18 +94,31 @@ export default function App() {
       <Route path="/login" element={<Navigate to="/workspace" replace />} />
       <Route path="/platform-admin/*" element={<Navigate to="/workspace" replace />} />
       <Route
-        path="/workspace"
+        path="/workspace/plants"
         element={
           <TenantDashboard
+            page="plants"
+            canManagePlants={["TENANT_OWNER", "TENANT_ADMIN", "MANAGER"].includes(session.user.tenantRole ?? "")}
             onLogout={logout}
             tenantName={session.tenant?.name ?? "Your workspace"}
             userName={session.user.name ?? "Tenant account"}
           />
         }
       />
+      <Route
+        path="/workspace"
+        element={
+          <TenantDashboard
+            page="dashboard"
+            canManagePlants={["TENANT_OWNER", "TENANT_ADMIN", "MANAGER"].includes(session.user.tenantRole ?? "")}
+            onLogout={logout}
+            tenantName={session.tenant?.name ?? "Your workspace"}
+            userName={session.user.name ?? "Tenant account"}
+          />
+        }
+      />
+      <Route path="/workspace/*" element={<Navigate to="/workspace" replace />} />
       <Route path="*" element={<Navigate to="/workspace" replace />} />
     </Routes>
   );
 }
-
-

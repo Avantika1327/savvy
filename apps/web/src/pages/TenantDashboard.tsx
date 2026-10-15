@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-
+import { useNavigate } from "react-router-dom";
 import DashboardStatCard from "../components/workspace/DashboardStatCard";
 import OperationsChart from "../components/workspace/OperationsChart";
 import PlantPerformanceCard from "../components/workspace/PlantPerformanceCard";
@@ -7,64 +7,56 @@ import RecentOrdersCard from "../components/workspace/RecentOrdersCard";
 import WelcomeHeader from "../components/workspace/WelcomeHeader";
 import WorkspaceSidebar from "../components/workspace/WorkspaceSidebar";
 import WorkspaceTopbar from "../components/workspace/WorkspaceTopbar";
-
-import {
-  dashboardStats,
-  demoOrders,
-} from "../data/dashboardData";
-
+import PlantsPage from "./PlantsPage";
+import { dashboardStats, demoOrders } from "../data/dashboardData";
 import type { WorkspacePage } from "../types/dashboard";
 
 type Props = {
+  page: "dashboard" | "plants";
+  canManagePlants: boolean;
   onLogout: () => void;
   tenantName: string;
   userName: string;
 };
 
-export default function TenantDashboard({
-  onLogout,
-  tenantName,
-  userName,
-}: Props) {
-  const [active, setActive] =
-    useState<WorkspacePage>("Dashboards");
-
+export default function TenantDashboard({ page, canManagePlants, onLogout, tenantName, userName }: Props) {
+  const navigate = useNavigate();
+  const [active, setActive] = useState<WorkspacePage>("Dashboards");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const isPlantsPage = page === "plants";
+  const activePage: WorkspacePage = isPlantsPage ? "Plants" : active;
 
   const filteredOrders = useMemo(() => {
     const query = search.trim().toLowerCase();
-
-    if (!query) {
-      return demoOrders;
-    }
-
+    if (!query) return demoOrders;
     return demoOrders.filter((order) =>
-      [
-        order.id,
-        order.customer,
-        order.plant,
-        order.quantity,
-        order.status,
-      ].some((field) =>
-        field.toLowerCase().includes(query),
-      ),
+      [order.id, order.customer, order.plant, order.quantity, order.status]
+        .some((field) => field.toLowerCase().includes(query)),
     );
   }, [search]);
+
+  function handleNavigate(page: WorkspacePage) {
+    setActive(page);
+    setMobileOpen(false);
+    if (page === "Plants") {
+      navigate("/workspace/plants");
+      return;
+    }
+    if (isPlantsPage) navigate("/workspace");
+  }
 
   return (
     <div className="shell">
       <WorkspaceSidebar
         tenantName={tenantName}
         userName={userName}
-        active={active}
+        active={activePage}
         mobileOpen={mobileOpen}
-        onNavigate={setActive}
+        onNavigate={handleNavigate}
         onCloseMobile={() => setMobileOpen(false)}
         onLogout={onLogout}
       />
-
-      {/* Mobile sidebar backdrop */}
       {mobileOpen && (
         <button
           type="button"
@@ -73,51 +65,39 @@ export default function TenantDashboard({
           onClick={() => setMobileOpen(false)}
         />
       )}
-
       <main className="main">
         <WorkspaceTopbar
-          active={active}
+          active={activePage}
           searchValue={search}
           onSearchChange={setSearch}
-          onToggleMobile={() =>
-            setMobileOpen((current) => !current)
-          }
+          onToggleMobile={() => setMobileOpen((current) => !current)}
+          showSearch={!isPlantsPage}
         />
-
         <section className="content">
-          <WelcomeHeader
-            active={active}
-            onCreateOrder={() => setActive("Orders")}
-          />
-
-          <div className="stat-grid">
-            {dashboardStats.map((stat) => (
-              <DashboardStatCard
-                key={stat.label}
-                stat={stat}
+          {isPlantsPage ? (
+            <PlantsPage canManagePlants={canManagePlants} />
+          ) : (
+            <>
+              <WelcomeHeader active={activePage} onCreateOrder={() => setActive("Orders")} />
+              <div className="stat-grid">
+                {dashboardStats.map((stat) => <DashboardStatCard key={stat.label} stat={stat} />)}
+              </div>
+              <div className="section-grid">
+                <OperationsChart />
+                <PlantPerformanceCard />
+              </div>
+              <RecentOrdersCard
+                orders={filteredOrders}
+                search={search}
+                onSearchChange={setSearch}
+                onViewAll={setActive}
               />
-            ))}
-          </div>
-
-          <div className="section-grid">
-            <OperationsChart />
-            <PlantPerformanceCard />
-          </div>
-
-          <RecentOrdersCard
-            orders={filteredOrders}
-            search={search}
-            onSearchChange={setSearch}
-            onViewAll={setActive}
-          />
-
-          <footer>
-            © {new Date().getFullYear()} Savvy Operations
-            <span>
-              Built for smoother operations{" "}
-              <span className="footer-heart">✦</span>
-            </span>
-          </footer>
+              <footer>
+                © {new Date().getFullYear()} Savvy Operations
+                <span>Built for smoother operations <span className="footer-heart">✦</span></span>
+              </footer>
+            </>
+          )}
         </section>
       </main>
     </div>

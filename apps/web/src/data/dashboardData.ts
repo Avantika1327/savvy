@@ -12,7 +12,6 @@ import {
   Users,
   Wrench,
 } from "lucide-react";
-
 import type {
   DashboardOrder,
   DashboardStat,
@@ -20,12 +19,12 @@ import type {
   WorkspaceNavGroup,
 } from "../types/dashboard";
 
+// Original Savvy workspace menu. Items stay in shared configuration so the
+// sidebar and future route registration can consume the same typed source.
 export const workspaceNavigation: WorkspaceNavGroup[] = [
   {
     section: "MENU",
-    items: [
-      { label: "Dashboards", icon: ChartNoAxesCombined },
-    ],
+    items: [{ label: "Dashboards", icon: ChartNoAxesCombined }],
   },
   {
     section: "CUSTOMERS",
@@ -48,15 +47,11 @@ export const workspaceNavigation: WorkspaceNavGroup[] = [
   },
   {
     section: "VENDORS",
-    items: [
-      { label: "Vendor", icon: Package },
-    ],
+    items: [{ label: "Vendor", icon: Package }],
   },
   {
     section: "STOCK MANAGEMENT",
-    items: [
-      { label: "Raw Materials Stock", icon: Boxes },
-    ],
+    items: [{ label: "Raw Materials Stock", icon: Boxes }],
   },
   {
     section: "SETTINGS",
@@ -67,7 +62,7 @@ export const workspaceNavigation: WorkspaceNavGroup[] = [
   },
 ];
 
-// Demo data only. Connect real APIs before using these as live metrics.
+// Demo values: replace with API data before representing these as live KPIs.
 export const dashboardStats: DashboardStat[] = [
   {
     label: "Total orders",
@@ -145,14 +140,8 @@ export const demoOrders: DashboardOrder[] = [
   },
 ];
 
-export const productionBars = [
-  44, 62, 50, 76, 58, 87, 67, 94, 72, 60, 82, 70,
-];
-
-export const productionDayLabels = [
-  "1", "3", "5", "7", "9", "11",
-  "13", "15", "17", "19", "21", "23",
-];
+export const productionBars = [44, 62, 50, 76, 58, 87, 67, 94, 72, 60, 82, 70];
+export const productionDayLabels = ["1", "3", "5", "7", "9", "11", "13", "15", "17", "19", "21", "23"];
 
 export const plantStatuses: PlantStatus[] = [
   { name: "Pune Plant", state: "Running", tone: "good" },

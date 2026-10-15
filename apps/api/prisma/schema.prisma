@@ -7,6 +7,10 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// -----------------------------------------------------------------------------
+// SaaS platform / tenant administration
+// -----------------------------------------------------------------------------
+
 enum TenantStatus {
   TRIAL
   ACTIVE
@@ -68,10 +72,10 @@ model Tenant {
   contactEmail           String?      @map("contact_email")
   contactPhone           String?      @map("contact_phone")
   contactPhoneNormalized String?      @unique(map: "tenants_contact_phone_normalized_key") @map("contact_phone_normalized")
+  deletedAt              DateTime?    @map("deleted_at") @db.Timestamp(3)
   status                 TenantStatus @default(TRIAL)
   activatedAt            DateTime?    @map("activated_at") @db.Timestamp(3)
   deactivatedAt          DateTime?    @map("deactivated_at") @db.Timestamp(3)
-  deletedAt              DateTime?    @map("deleted_at") @db.Timestamp(3)
   createdAt              DateTime     @default(now()) @map("created_at") @db.Timestamp(3)
   updatedAt              DateTime     @updatedAt @map("updated_at") @db.Timestamp(3)
 
@@ -211,6 +215,11 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+// -----------------------------------------------------------------------------
+// Identity. email remains globally unique so one identity can join multiple
+// tenant memberships. The legacy role string is retained during migration.
+// -----------------------------------------------------------------------------
+
 model User {
   id              Int          @id @default(autoincrement())
   name            String
@@ -235,20 +244,28 @@ model User {
   @@map("users")
 }
 
+// -----------------------------------------------------------------------------
+// Tenant-scoped operations. tenantId is intentionally present on every business
+// record, even where ownership can be inferred through Plant/Customer/Order.
+// Backend queries must still apply tenant scope to every read/write.
+// -----------------------------------------------------------------------------
+
 model Plant {
-  id        Int       @id @default(autoincrement())
-  tenantId  String    @map("tenant_id")
-  name      String
-  address   String?
-  manager   String?
-  managerId Int?      @map("manager_id")
-  location  String?
-  pincode   String?
-  details   String?
-  vendorId  Int?      @map("vendor_id")
-  deletedAt DateTime? @map("deleted_at") @db.Timestamp(3)
-  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
-  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
+  id             Int       @id @default(autoincrement())
+  tenantId       String    @map("tenant_id")
+  name           String
+  normalizedName String    @map("normalized_name")
+  address        String?
+  manager        String?
+  managerId      Int?      @map("manager_id")
+  location       String?
+  pincode        String?
+  details        String?
+  vendorId       Int?      @map("vendor_id")
+  isActive       Boolean   @default(true) @map("is_active")
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamp(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamp(3)
 
   tenant                      Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   managerRecord               User?                        @relation("PlantManager", fields: [managerId], references: [id], onDelete: Cascade)
@@ -268,8 +285,8 @@ model Plant {
   distributorPlantAllocations DistributorPlantAllocation[]
 
   @@unique([id, tenantId])
-  @@unique([tenantId, name])
-  @@index([tenantId, deletedAt])
+  @@unique([tenantId, normalizedName])
+  @@index([tenantId, isActive, deletedAt])
   @@index([tenantId, vendorId])
   @@map("plants")
 }
